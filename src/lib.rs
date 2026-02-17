@@ -14,4 +14,4 @@ pub mod ws_server;
 pub mod serial_reader;
 
 #[cfg(feature = "gui")]
-pub mod gui;
+pub mod webview_app;

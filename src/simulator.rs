@@ -602,7 +602,7 @@ fn pick_next_chord(cur: usize, rng: &mut Rng) -> usize {
 
 /// Append release + slide + engage gestures for transitioning old → new chord.
 fn chord_transition(g: &mut Vec<Gesture>, old: &ChordV, new: &ChordV,
-                    rng: &mut Rng, beat: u32) {
+                    _rng: &mut Rng, beat: u32) {
     let sq = beat * 2;
 
     // Release current pedals / levers (quick)

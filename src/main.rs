@@ -3,7 +3,7 @@ use steel_capture::copedant::buddy_emmons_e9;
 use steel_capture::simulator;
 use steel_capture::types::*;
 #[cfg(feature = "gui")]
-use steel_capture::gui;
+use steel_capture::webview_app;
 #[cfg(feature = "hardware")]
 use steel_capture::serial_reader;
 use steel_capture::console_display;
@@ -105,7 +105,7 @@ fn main() {
     info!("  STEEL CAPTURE v{}", env!("CARGO_PKG_VERSION"));
     info!("  Copedant: {}", copedant.name);
     info!("  Mode: {}", if cli.simulate { "SIMULATOR" } else { "HARDWARE" });
-    if gui_enabled { info!("  UI: Native (egui)"); }
+    if gui_enabled { info!("  UI: WebView (wry) → http://{}", cli.ws_addr.replace("0.0.0.0", "localhost")); }
     if cli.ws { info!("  UI: WebSocket on {}", cli.ws_addr); }
     if cli.console { info!("  UI: Console TUI"); }
     info!("═══════════════════════════════════════════════");
@@ -152,8 +152,10 @@ fn main() {
         }).unwrap());
     }
 
-    // ─── WebSocket server (opt-in with --ws) ────────────────────────
-    if cli.ws {
+    // ─── WebSocket server ────────────────────────────────────────────
+    // Always started when the webview GUI is active (it needs it to load the viz).
+    // Also started when --ws is passed explicitly for external browser access.
+    if gui_enabled || cli.ws {
         let (tx, rx) = bounded::<CaptureFrame>(1024);
         frame_txs.push(tx);
         let ws_addr = cli.ws_addr.clone();
@@ -165,9 +167,9 @@ fn main() {
             ws_server::WsServer::new(rx, ws_addr, ws_fps, viz_path).run();
         }).unwrap());
 
-        // Auto-open browser after a short delay for the server to bind.
-        // Suppress with --no-open.
-        if !cli.no_open {
+        // Auto-open a browser tab when --ws is explicit and the webview is NOT running.
+        // (When webview is running it IS the browser; no external tab needed.)
+        if cli.ws && !gui_enabled && !cli.no_open {
             let url = format!("http://{}", cli.ws_addr.replace("0.0.0.0", "localhost"));
             handles.push(thread::Builder::new().name("browser-open".into()).spawn(move || {
                 thread::sleep(std::time::Duration::from_millis(800));
@@ -180,15 +182,7 @@ fn main() {
         }
     }
 
-    // ─── GUI channel (created before coordinator, consumed on main thread) ──
-    #[cfg(feature = "gui")]
-    let gui_rx = if !cli.no_gui {
-        let (tx, rx) = bounded::<CaptureFrame>(1024);
-        frame_txs.push(tx);
-        Some(rx)
-    } else {
-        None
-    };
+    // (No Rust channel needed for the webview — it reads frames via WebSocket.)
 
     // ─── Coordinator ────────────────────────────────────────────────
     let cop2 = copedant.clone();
@@ -236,19 +230,18 @@ fn main() {
         }
     }
 
-    // ─── Launch GUI on main thread (blocks until window closes) ─────
+    // ─── Launch WebView on main thread (blocks until window closes) ──
     //
-    // eframe/egui MUST run on the main thread (macOS AppKit requirement).
+    // WKWebView (via wry/tao) MUST run on the main thread on macOS.
     // All other threads are already spawned above.
-    // When the window closes, we exit the process.
+    // webview_app::run() never returns — it exits the process on close.
     #[cfg(feature = "gui")]
-    if let Some(rx) = gui_rx {
-        info!("Launching native GUI...");
-        if let Err(e) = gui::run(rx) {
-            error!("GUI error: {}", e);
-        }
-        info!("GUI closed. Exiting.");
-        std::process::exit(0);
+    if gui_enabled {
+        // Give the WS server a moment to bind before the WebView tries to load.
+        thread::sleep(std::time::Duration::from_millis(600));
+        let url = format!("http://{}", cli.ws_addr.replace("0.0.0.0", "localhost"));
+        info!("Launching WebView at {}", url);
+        webview_app::run(&url);
     }
 
     // If no GUI (--no-gui or feature disabled), wait for threads

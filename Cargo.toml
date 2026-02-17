@@ -24,15 +24,19 @@ byteorder = "1.5"
 hound = "3.5"
 sha1_smol = "1.0"
 
-# GUI (native window via egui/eframe)
-eframe = { version = "0.29", optional = true, default-features = false, features = ["default_fonts", "glow"] }
+# GUI — native window via wry (WKWebView on macOS) loading the existing WS viz
+wry = { version = "0.54", optional = true }
+tao = { version = "0.34", optional = true }
 
 # Hardware dependencies — optional for simulator-only builds
 serialport = { version = "4.3", optional = true }
+
+# Audio synthesis (native, optional — web viz handles sound via Web Audio API)
 cpal = { version = "0.15", optional = true }
+fundsp = { version = "0.23", optional = true }
 
 [features]
 default = ["gui"]
-gui = ["eframe"]
+gui = ["wry", "tao"]
 hardware = ["serialport"]
-audio = ["cpal"]
+audio = ["cpal", "fundsp"]
