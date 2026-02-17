@@ -60,21 +60,24 @@ impl Simulator {
         }
     }
 
-    /// Run a demo sequence that exercises all gesture types.
+    /// Run a named demo sequence. `demo` is one of "basic" or "e9".
     /// Blocks the calling thread.
-    pub fn run(&mut self) {
-        info!("Simulator starting demo sequence...");
+    pub fn run(&mut self, demo: &str) {
+        info!("Simulator starting '{}' sequence...", demo);
         let mut state = SimState::default();
         let tick_us = 1_000_000 / self.sensor_rate_hz as u64;
 
-        // Build the demo sequence
-        let gestures = demo_sequence();
+        let gestures = match demo {
+            "e9"    => e9_moves_sequence(),
+            "improv" => improvise_sequence(0xc0ffee_u64, 200),
+            _       => demo_sequence(),
+        };
 
         for gesture in &gestures {
             self.execute(gesture, &mut state, tick_us);
         }
 
-        info!("Demo sequence complete. Holding final state...");
+        info!("Sequence '{}' complete. Holding final state...", demo);
         // Hold indefinitely so the system stays alive
         loop {
             self.emit_tick(&state, tick_us);
@@ -369,6 +372,331 @@ fn demo_sequence() -> Vec<Gesture> {
         Gesture::BarLift,
         Gesture::Hold { ms: 500 },
     ]
+}
+
+/// Slow, idiomatic E9 movement sequence — tertian harmony, 5-string voicings,
+/// standard copedant combinations. ~90 seconds at 72 BPM.
+///
+/// Chord map (all verified against E9 MIDI open_midi):
+///   Fret 0, no pedals → E major   (str 3-6, 8)
+///   Fret 0, B+C       → F# minor  (str 1, 3-6)
+///   Fret 0, A+B       → A major   (str 3-6, 10)
+///   Fret 0, A+LKL     → C# major  (str 3-6, 8)
+///   Fret 5, no pedals → A(add9)   (str 3-7)
+///   Fret 5, A         → F# minor  (str 3-6, 10)
+///   Fret 5, B+C       → B minor   (str 1, 3-6)
+///   Fret 7, no pedals → B major   (str 3-6, 8)
+///   Fret 7, A+B       → E major   (str 3-6, 10)
+///   Fret 7, A         → G# minor  (str 3-6, 10)
+///   Fret 7, LKL       → C dim     (str 3-6, 8)
+///   Fret 9, no pedals → Db(add9)  (str 3-7)
+///   Fret 9, A+B       → F# major  (str 3-6, 10)
+///   Fret 9, B+C       → Eb minor  (str 1, 3-6)
+fn e9_moves_sequence() -> Vec<Gesture> {
+    let beat = 833_u32; // 72 BPM: 60_000 / 72 ≈ 833 ms
+    let sq   = beat * 2; // 2-beat slow squeeze
+
+    // String indices (0-based): str3=2, str4=3, str5=4, str6=5, str7=6, str8=7, str10=9
+    // Pedal indices: A=0, B=1, C=2
+    // Lever indices: LKL=0, LKV=1, LKR=2, RKL=3, RKR=4
+
+    vec![
+        // ── Intro: place bar at fret 0, volume swell ──
+        Gesture::Hold { ms: 400 },
+        Gesture::BarPlace { fret: 0.0 },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 7] }, // E major: str3-6,8
+        Gesture::VolumeSwell { from: 0.0, to: 0.83, ms: beat + beat / 2 },
+        Gesture::Hold { ms: beat },
+
+        // ── Section A: fret 0 ──
+
+        // E major open (2 beats)
+        Gesture::Hold { ms: beat * 2 },
+
+        // → F# minor (B+C quick engage — chord changes when both down)
+        Gesture::PickStrings { strings: vec![0, 2, 3, 4, 5] }, // str1,3-6
+        Gesture::PedalEngage { index: 1, ms: 120 }, // B
+        Gesture::PedalEngage { index: 2, ms: 120 }, // C
+        Gesture::Hold { ms: beat * 3 },
+        Gesture::PedalRelease { index: 2, ms: 120 },
+        Gesture::PedalRelease { index: 1, ms: 120 },
+        Gesture::Hold { ms: beat },
+
+        // → A major (A+B quick engage)
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 9] }, // str3-6,10
+        Gesture::PedalEngage { index: 0, ms: 120 }, // A
+        Gesture::PedalEngage { index: 1, ms: 120 }, // B
+        Gesture::Hold { ms: beat * 3 },
+        Gesture::PedalRelease { index: 1, ms: 120 },
+        Gesture::PedalRelease { index: 0, ms: 120 },
+        Gesture::Hold { ms: beat },
+
+        // → C# major (A slow squeeze + LKL slow squeeze)
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 7] }, // str3-6,8
+        Gesture::PedalEngage { index: 0, ms: sq },   // A: 2-beat squeeze
+        Gesture::LeverEngage { index: 0, ms: sq },   // LKL: 2-beat squeeze (sequential)
+        Gesture::Hold { ms: beat * 2 },
+        Gesture::LeverRelease { index: 0, ms: beat },
+        Gesture::PedalRelease { index: 0, ms: beat },
+        Gesture::Hold { ms: beat },
+
+        // ── Section B: slide to fret 5 ──
+        Gesture::BarSlide { to: 5.0, ms: beat + beat / 2 },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 6] }, // A(add9): str3-7
+        Gesture::Hold { ms: beat * 2 },
+
+        // → F# minor (A slow squeeze + slow release)
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 9] }, // str3-6,10
+        Gesture::PedalEngage { index: 0, ms: sq },
+        Gesture::Hold { ms: beat * 2 },
+        Gesture::PedalRelease { index: 0, ms: sq },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 6] }, // back to A(add9)
+        Gesture::Hold { ms: beat },
+
+        // → B minor (B+C quick engage)
+        Gesture::PickStrings { strings: vec![0, 2, 3, 4, 5] }, // str1,3-6
+        Gesture::PedalEngage { index: 1, ms: 120 },
+        Gesture::PedalEngage { index: 2, ms: 120 },
+        Gesture::Hold { ms: beat * 3 },
+        Gesture::PedalRelease { index: 2, ms: 120 },
+        Gesture::PedalRelease { index: 1, ms: 120 },
+        Gesture::Hold { ms: beat },
+
+        // ── Section C: slide to fret 7 ──
+        Gesture::BarSlide { to: 7.0, ms: beat + beat / 2 },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 7] }, // B major: str3-6,8
+        Gesture::Hold { ms: beat * 2 },
+
+        // → E major at fret 7 (A+B quick engage)
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 9] }, // str3-6,10
+        Gesture::PedalEngage { index: 0, ms: 120 },
+        Gesture::PedalEngage { index: 1, ms: 120 },
+        Gesture::Hold { ms: beat * 3 },
+        Gesture::PedalRelease { index: 1, ms: 120 },
+        Gesture::PedalRelease { index: 0, ms: 120 },
+        Gesture::Hold { ms: beat },
+
+        // → G# minor (A slow squeeze + slow release)
+        Gesture::PedalEngage { index: 0, ms: sq },
+        Gesture::Hold { ms: beat * 2 },
+        Gesture::PedalRelease { index: 0, ms: sq },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 7] }, // back to B major grip
+        Gesture::Hold { ms: beat },
+
+        // → C dim (LKL slow squeeze — brief passing chord)
+        Gesture::LeverEngage { index: 0, ms: sq },
+        Gesture::Hold { ms: beat + beat / 2 },
+        Gesture::LeverRelease { index: 0, ms: beat },
+
+        // ── Section D: slide to fret 9 ──
+        Gesture::BarSlide { to: 9.0, ms: beat * 2 },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 6] }, // Db(add9): str3-7
+        Gesture::Hold { ms: beat * 2 },
+
+        // → F# major (A+B quick engage)
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 9] }, // str3-6,10
+        Gesture::PedalEngage { index: 0, ms: 120 },
+        Gesture::PedalEngage { index: 1, ms: 120 },
+        Gesture::Hold { ms: beat * 3 },
+        Gesture::PedalRelease { index: 1, ms: 120 },
+        Gesture::PedalRelease { index: 0, ms: 120 },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 6] }, // Db(add9)
+        Gesture::Hold { ms: beat * 2 },
+
+        // → Eb minor (B+C quick engage)
+        Gesture::PickStrings { strings: vec![0, 2, 3, 4, 5] }, // str1,3-6
+        Gesture::PedalEngage { index: 1, ms: 120 },
+        Gesture::PedalEngage { index: 2, ms: 120 },
+        Gesture::Hold { ms: beat * 3 },
+        Gesture::PedalRelease { index: 2, ms: 120 },
+        Gesture::PedalRelease { index: 1, ms: 120 },
+        Gesture::Hold { ms: beat },
+
+        // ── Outro: slide back to fret 0, E major, fade ──
+        Gesture::BarSlide { to: 0.0, ms: beat * 2 },
+        Gesture::PickStrings { strings: vec![2, 3, 4, 5, 7] }, // E major: str3-6,8
+        Gesture::Hold { ms: beat * 2 },
+        Gesture::BarVibrato { width: 0.10, rate_hz: 5.2, ms: beat * 4 },
+        Gesture::VolumeSwell { from: 0.83, to: 0.0, ms: beat * 5 },
+        Gesture::MuteAll,
+        Gesture::BarLift,
+        Gesture::Hold { ms: beat },
+    ]
+}
+
+// ─── Xorshift64 PRNG (no external crates) ────────────────────────────────────
+
+struct Rng(u64);
+
+impl Rng {
+    fn new(seed: u64) -> Self { Rng(seed.max(1)) }
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    /// Uniform in [lo, hi] inclusive.
+    fn range(&mut self, lo: u32, hi: u32) -> u32 {
+        lo + (self.next() % (hi - lo + 1) as u64) as u32
+    }
+    /// True with probability 1/n.
+    fn one_in(&mut self, n: u64) -> bool { self.next() % n == 0 }
+}
+
+// ─── E9 chord vocabulary (shared by improv + future uses) ────────────────────
+
+struct ChordV {
+    label: &'static str,
+    fret:    f32,
+    ped:     [bool; 3],   // A, B, C
+    lev:     [bool; 5],   // LKL, LKV, LKR, RKL, RKR
+    strings: &'static [usize],
+    passing: bool,        // dim / transitional — shorter holds
+}
+
+static CHORD_VOCAB: &[ChordV] = &[
+    // Fret 0 ──────────────────────────────────────────────────────────────────
+    ChordV { label:"E",    fret:0., ped:[false,false,false], lev:[false,false,false,false,false], strings:&[2,3,4,5,7], passing:false },
+    ChordV { label:"F#m",  fret:0., ped:[false,true, true ], lev:[false,false,false,false,false], strings:&[0,2,3,4,5], passing:false },
+    ChordV { label:"A",    fret:0., ped:[true, true, false], lev:[false,false,false,false,false], strings:&[2,3,4,5,9], passing:false },
+    ChordV { label:"C#",   fret:0., ped:[true, false,false], lev:[true, false,false,false,false], strings:&[2,3,4,5,7], passing:false },
+    // G#m = open+LKR: E4→Eb4, E3→Eb3 → G#,Eb,B,G#,Eb = G# minor
+    ChordV { label:"G#m",  fret:0., ped:[false,false,false], lev:[false,false,true, false,false], strings:&[2,3,4,5,7], passing:false },
+    // Db7 = open+LKL: E4→F4, E3→F3 → G#,F,B,G#,F = rootless Db dominant 7th
+    ChordV { label:"Db7",  fret:0., ped:[false,false,false], lev:[true, false,false,false,false], strings:&[2,3,4,5,7], passing:false },
+    // Fret 5 ──────────────────────────────────────────────────────────────────
+    ChordV { label:"A9",   fret:5., ped:[false,false,false], lev:[false,false,false,false,false], strings:&[2,3,4,5,6], passing:false },
+    ChordV { label:"F#m5", fret:5., ped:[true, false,false], lev:[false,false,false,false,false], strings:&[2,3,4,5,9], passing:false },
+    ChordV { label:"Bm",   fret:5., ped:[false,true, true ], lev:[false,false,false,false,false], strings:&[0,2,3,4,5], passing:false },
+    // Fret 7 ──────────────────────────────────────────────────────────────────
+    ChordV { label:"B",    fret:7., ped:[false,false,false], lev:[false,false,false,false,false], strings:&[2,3,4,5,7], passing:false },
+    ChordV { label:"E@7",  fret:7., ped:[true, true, false], lev:[false,false,false,false,false], strings:&[2,3,4,5,9], passing:false },
+    ChordV { label:"G#m",  fret:7., ped:[true, false,false], lev:[false,false,false,false,false], strings:&[2,3,4,5,9], passing:false },
+    // Ab7 = fret7+LKL: chart-labeled Ab7 (rootless dominant 7th, not a true diminished)
+    ChordV { label:"Ab7",  fret:7., ped:[false,false,false], lev:[true, false,false,false,false], strings:&[2,3,4,5,7], passing:false },
+    // Ebm7 = fret7+LKR: F#4→C#5,Eb5,Bb4,F#4,Eb4 = Db,Eb,Gb,Bb = Eb minor 7th
+    ChordV { label:"Ebm7", fret:7., ped:[false,false,false], lev:[false,false,true, false,false], strings:&[0,2,3,4,5], passing:false },
+    // Fret 9 ──────────────────────────────────────────────────────────────────
+    ChordV { label:"Db9",  fret:9., ped:[false,false,false], lev:[false,false,false,false,false], strings:&[2,3,4,5,6], passing:false },
+    ChordV { label:"F#9",  fret:9., ped:[true, true, false], lev:[false,false,false,false,false], strings:&[2,3,4,5,9], passing:false },
+    ChordV { label:"Ebm",  fret:9., ped:[false,true, true ], lev:[false,false,false,false,false], strings:&[0,2,3,4,5], passing:false },
+];
+
+/// Pick next chord index: weighted by fret proximity, never same chord twice.
+fn pick_next_chord(cur: usize, rng: &mut Rng) -> usize {
+    let cur_fret = CHORD_VOCAB[cur].fret;
+    let weights: Vec<u32> = CHORD_VOCAB.iter().enumerate().map(|(i, v)| {
+        if i == cur { return 0; }
+        let d = (v.fret - cur_fret).abs();
+        if d < 0.1 { 3 } else if d <= 4.0 { 2 } else { 1 }
+    }).collect();
+    let total: u32 = weights.iter().sum();
+    let mut pick = (rng.next() % total as u64) as u32;
+    for (i, &w) in weights.iter().enumerate() {
+        if pick < w { return i; }
+        pick -= w;
+    }
+    0
+}
+
+/// Append release + slide + engage gestures for transitioning old → new chord.
+fn chord_transition(g: &mut Vec<Gesture>, old: &ChordV, new: &ChordV,
+                    rng: &mut Rng, beat: u32) {
+    let sq = beat * 2;
+
+    // Release current pedals / levers (quick)
+    for i in 0..3 { if old.ped[i] { g.push(Gesture::PedalRelease { index: i, ms: 150 }); } }
+    for i in 0..5 { if old.lev[i] { g.push(Gesture::LeverRelease { index: i, ms: 150 }); } }
+
+    // Bar slide (speed proportional to fret distance)
+    let dist = (new.fret - old.fret).abs();
+    if dist > 0.01 {
+        let slide_ms = (dist * 180.0) as u32 + 200;
+        g.push(Gesture::BarSlide { to: new.fret, ms: slide_ms });
+    }
+
+    g.push(Gesture::PickStrings { strings: new.strings.to_vec() });
+
+    // Engage new pedals / levers.
+    // Slow (2-beat squeeze) for solo pedal or solo lever; quick for pairs.
+    let n_ped = new.ped.iter().filter(|&&x| x).count();
+    let n_lev = new.lev.iter().filter(|&&x| x).count();
+    let slow_ped = n_ped == 1 && n_lev == 0;
+    let slow_lev = n_lev >= 1 && n_ped == 0;
+    for i in 0..3 {
+        if new.ped[i] { g.push(Gesture::PedalEngage { index: i, ms: if slow_ped { sq } else { 120 } }); }
+    }
+    for i in 0..5 {
+        if new.lev[i] { g.push(Gesture::LeverEngage { index: i, ms: if slow_lev { sq } else { 120 } }); }
+    }
+
+    // Occasional micro-swell for expression (~1 in 5 transitions)
+    if rng.one_in(5) {
+        let base = 0.82_f32;
+        let peak = base + 0.06;
+        let dur  = beat * 2;
+        g.push(Gesture::VolumeSwell { from: base, to: peak, ms: dur });
+        g.push(Gesture::VolumeSwell { from: peak, to: base, ms: dur });
+    }
+}
+
+/// Algorithmic improvisation — weighted random walk over the E9 chord vocabulary.
+///
+/// Generates `total_beats` beats of musically coherent gestures at 72 BPM.
+/// Pass different `seed` values for different performances.
+fn improvise_sequence(seed: u64, total_beats: u32) -> Vec<Gesture> {
+    let beat = 833_u32;   // 72 BPM
+    let mut rng = Rng::new(seed);
+    let mut g = Vec::<Gesture>::new();
+
+    // Intro: place bar, swell in
+    g.push(Gesture::Hold { ms: 300 });
+    g.push(Gesture::BarPlace { fret: 0.0 });
+    g.push(Gesture::PickStrings { strings: CHORD_VOCAB[0].strings.to_vec() }); // E major
+    g.push(Gesture::VolumeSwell { from: 0.0, to: 0.82, ms: beat + beat / 2 });
+    g.push(Gesture::Hold { ms: beat * 2 });
+
+    let mut elapsed_beats: u32 = 5;
+    let mut cur_idx: usize = 0;
+    let end_beats = total_beats.saturating_sub(12);
+
+    while elapsed_beats < end_beats {
+        let next_idx = pick_next_chord(cur_idx, &mut rng);
+        let cur  = &CHORD_VOCAB[cur_idx];
+        let next = &CHORD_VOCAB[next_idx];
+
+        chord_transition(&mut g, cur, next, &mut rng, beat);
+
+        // Hold: 1–2 beats for passing chords, 2–5 for normal
+        let hold_beats = if next.passing {
+            rng.range(1, 2)
+        } else {
+            rng.range(2, 5)
+        };
+        g.push(Gesture::Hold { ms: beat * hold_beats });
+
+        // Occasional vibrato (25% chance, non-passing only)
+        if !next.passing && rng.one_in(4) {
+            let width = 0.08 + rng.range(0, 7) as f32 * 0.01;
+            g.push(Gesture::BarVibrato { width, rate_hz: 5.2, ms: beat * 2 });
+            elapsed_beats += 2;
+        }
+
+        elapsed_beats += hold_beats + 2; // +2 for transition overhead estimate
+        cur_idx = next_idx;
+        info!("  improv: {} → {} (hold {} beats)", cur.label, next.label, hold_beats);
+    }
+
+    // Outro: resolve to E major, fade
+    chord_transition(&mut g, &CHORD_VOCAB[cur_idx], &CHORD_VOCAB[0], &mut rng, beat);
+    g.push(Gesture::Hold { ms: beat * 2 });
+    g.push(Gesture::BarVibrato { width: 0.10, rate_hz: 5.2, ms: beat * 4 });
+    g.push(Gesture::VolumeSwell { from: 0.82, to: 0.0, ms: beat * 5 });
+    g.push(Gesture::MuteAll);
+    g.push(Gesture::BarLift);
+    g.push(Gesture::Hold { ms: beat });
+    g
 }
 
 // ─── Math helpers ───────────────────────────────────────────────────────────

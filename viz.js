@@ -60,7 +60,12 @@ function importConfig(json){
 var PNM,LNM;
 // Standard E9 tab notation: P1=A, P2=B, P3=C
 var TAB_PED=['A','B','C','D','E','F','G','H'];
-var TAB_LEV=['LKL','LKV','LKR','RKL','RKR','RL6','RL7','RL8'];
+// Standard E9 knee lever single-letter codes (Warnock E9 chord chart):
+//   F = LKL1 (left knee left — raises str4, str8 +1 semitone)
+//   E = LKR  (left knee right — lowers str4, str8 -1)
+//   LKV = no universally agreed single letter in most charts
+//   D = RKL / RKR in some charts
+var TAB_LEV=['F','','E','D','D','','',''];
 function updateNames(){PNM=CFG.copedant.pedal_names;LNM=CFG.copedant.lever_names}
 updateNames();
 
@@ -160,7 +165,7 @@ function pushFrame(f){S=f;H.push(f);if(H.length>HM)H.splice(0,H.length-HM)}
 //   'ws'   — WebSocket stream (live)
 
 var sources={};  // registry: name → {type, label, data?, rate?, duration?}
-var curSrc='sim';
+var curSrc=null;  // null = idle; 'ws' = live stream; file key = JSON playback
 var fileCursor=0, fileStartT=0, fileLooping=true;
 
 // Register a JSON dataset as a playback source
@@ -170,10 +175,9 @@ function registerFileSource(name, label, json){
   rebuildSourceUI()}
 
 // Get next packet from current source
-function sourceNext(dt, wallTime){
+function sourceNext(wallTime){
   var src=sources[curSrc];
   if(!src)return null;
-  if(src.type==='sim') return simGen(dt);
   if(src.type==='file'){
     if(!src.data||src.data.length===0)return null;
     var elapsed=(wallTime-fileStartT)*1000; // ms
@@ -195,7 +199,7 @@ function sourceNext(dt, wallTime){
 function switchSource(name){
   if(!sources[name])return;
   curSrc=name;
-  H=[];coordReset();simTime=0;simPhase=-1;fileCursor=0;
+  H=[];coordReset();fileCursor=0;
   fileStartT=performance.now()/1000;
   if(typeof actx!=='undefined'&&actx&&soundOn)audioStartT=actx.currentTime;
   rebuildSourceUI()}
@@ -221,59 +225,6 @@ function handleFileLoad(evt){
       registerFileSource(name,f.name.replace(/\.json$/i,''),j);
       switchSource(name)}catch(er){console.error('JSON parse error',er)}};
   r.readAsText(f);evt.target.value=''}
-
-// ═══ BUILT-IN SIMULATOR ═══
-var simTime=0,simPhase=-1,simPicks=new Array(10).fill(false);
-function simSet(a){simPicks=new Array(10).fill(false);for(var i=0;i<a.length;i++)if(a[i]<10)simPicks[a[i]]=true}
-function simGen(dt){
-  simTime+=dt;var t=simTime,ph=-1,ped=[0,0,0],lev=[0,0,0,0,0],bar=null,vol=0;
-  if(t<1){ph=0;if(simPhase!==ph)simSet([])}
-  else if(t<3.5){ph=1;var p=(t-1)/2.5;bar=3+.05*Math.sin(5.2*6.283*t)*sm(Math.min(1,p*3));
-    vol=sm(Math.min(1,p*1.2));if(simPhase!==ph)simSet([2,3,4])}
-  else if(t<6){ph=2;var p2=(t-3.5)/2.5;bar=3+.04*Math.sin(5*6.283*t);vol=.75+.1*Math.sin(.8*6.283*t);
-    if(p2<.2)ped[1]=sm(p2/.2);else if(p2<.7)ped[1]=1;else ped[1]=1-sm((p2-.7)/.25)}
-  else if(t<8.5){ph=3;var p3=(t-6)/2.5;
-    if(p3<.3)bar=3+5*sm(p3/.3);else bar=8+.05*Math.sin(5.3*6.283*t);
-    if(p3>.4&&p3<.8){var pp=(p3-.4)/.4;ped[0]=pp<.4?sm(pp/.4):1-sm((pp-.6)/.4)}
-    vol=.8+.08*Math.sin(1.2*6.283*t);if(simPhase!==ph)simSet([2,3,4,5])}
-  else if(t<11){ph=4;var p4=(t-8.5)/2.5;
-    if(p4<.15)bar=8-3*sm(p4/.15);else bar=5+.04*Math.sin(5.5*6.283*t);
-    if(p4<.2)ped[2]=sm(p4/.2);else if(p4<.65)ped[2]=1;else ped[2]=1-sm((p4-.65)/.3);
-    vol=.7;if(simPhase!==ph)simSet([3,4,5,7])}
-  else if(t<13.5){ph=5;var p5=(t-11)/2.5;
-    if(p5<.3)bar=5-2*sm(p5/.3);else bar=3+.05*Math.sin(5*6.283*t);
-    if(p5<.15)lev[0]=sm(p5/.15);else if(p5<.65)lev[0]=1;else lev[0]=1-sm((p5-.65)/.25);
-    vol=.65+.15*Math.sin(.7*6.283*t);if(simPhase!==ph)simSet([3,4,5,7,9])}
-  else if(t<16){ph=6;var p6=(t-13.5)/2.5;
-    if(p6<.3)bar=3+4*sm(p6/.3);else bar=7+.04*Math.sin(5.2*6.283*t);
-    if(p6<.15)lev[1]=sm(p6/.15);else if(p6<.6)lev[1]=1;else lev[1]=1-sm((p6-.6)/.3);
-    vol=.75;if(simPhase!==ph)simSet([2,3,4])}
-  else if(t<19){ph=7;var p7=(t-16)/3;
-    if(p7<.25)bar=7-4*sm(p7/.25);else if(p7<.5)bar=3+7*sm((p7-.25)/.25);
-    else if(p7<.75)bar=10+.04*Math.sin(5.3*6.283*t);else bar=10-7*sm((p7-.75)/.25);
-    if(p7>.1&&p7<.55)lev[3]=sm(Math.min(1,(p7-.1)/.1));if(p7>.45)lev[3]=Math.max(0,1-sm((p7-.45)/.1));
-    vol=.85;if(simPhase!==ph)simSet([0,2,4,5,7])}
-  else if(t<21.5){ph=8;var p8=(t-19)/2.5;bar=3+.06*Math.sin(5.5*6.283*t);
-    if(p8<.15)lev[4]=sm(p8/.15);else if(p8<.6)lev[4]=1;else lev[4]=1-sm((p8-.6)/.3);
-    if(p8<.2)vol=.85-.5*sm(p8/.2);else if(p8<.5)vol=.35+.55*sm((p8-.2)/.3);else vol=.9;
-    if(simPhase!==ph)simSet([1,2,3,4,5])}
-  else if(t<23.5){ph=9;var p9=(t-21.5)/2;bar=3+.05*Math.sin(5*6.283*t);vol=.7;
-    if(p9<.2)lev[2]=sm(p9/.2);else if(p9<.7)lev[2]=1;else lev[2]=1-sm((p9-.7)/.25)}
-  else if(t<27){ph=10;var p10=(t-23.5)/3.5;
-    if(p10<.25)bar=3+5*sm(p10/.25);else bar=8+.06*Math.sin(5.2*6.283*t);
-    if(p10<.15){ped[0]=sm(p10/.15);ped[1]=sm(p10/.15)}else if(p10<.5){ped[0]=1;ped[1]=1}
-    else if(p10<.7){ped[0]=1;ped[1]=1-sm((p10-.5)/.2)}else{ped[0]=1-sm((p10-.7)/.2)}
-    if(p10>.2&&p10<.6)lev[0]=sm(Math.min(1,(p10-.2)/.1));if(p10>.5)lev[0]=Math.max(0,1-sm((p10-.5)/.1));
-    vol=.85;if(simPhase!==ph)simSet([2,3,4,5,7,9])}
-  else if(t<32){ph=11;var p11=(t-27)/5;bar=3+.07*(1-p11)*Math.sin(5*6.283*t);
-    vol=.8*(1-sm(Math.max(0,(p11-.1)/.9)))}
-  else if(t<35){ph=12;vol=0;bar=null;if(simPhase!==ph)simSet([])}
-  else{ph=0;simTime=0;simSet([]);H=[];simPhase=-1;coordReset();return simGen(0)}
-  simPhase=ph;
-  return{timestamp_us:Math.floor(t*1e6),pedals:ped,levers:lev,bar_sens:sensResp(bar),volume:vol,picks:simPicks.slice()}}
-
-// Register built-in sim
-sources['sim']={type:'sim',label:'Demo'};
 
 // ═══ AUDIO ═══
 var actx=null,oscs=[],gains=[],masterG=null,soundOn=false,audioStartT=0;
@@ -303,10 +254,10 @@ function toggleSound(){
   else{if(masterG)masterG.gain.setTargetAtTime(0,actx.currentTime,.04);btn.innerHTML='&#x1f507; Sound';btn.classList.remove('snd')}}
 
 // ═══ WS ═══
-var wsConn=null,fc=0,ft=0,df=0;
+var wsConn=null,fc=0,ft=0,df=0,wsAmp=new Array(10).fill(0),wsLastT=0;
 function toggleW(){if(wsConn){wsConn.close();wsConn=null;document.getElementById('bw').classList.remove('on');return}
   try{wsConn=new WebSocket('ws://'+(location.host||'localhost:8080'));
-    wsConn.onopen=function(){curSrc='ws';document.getElementById('bw').classList.add('on');H=[];coordReset();rebuildSourceUI()};
+    wsConn.onopen=function(){curSrc='ws';document.getElementById('bw').classList.add('on');H=[];coordReset();wsAmp=new Array(OM.length).fill(0);wsLastT=0;rebuildSourceUI()};
     wsConn.onmessage=function(e){try{var d=JSON.parse(e.data);
       if(d.bar_sens!==undefined&&d.picks!==undefined){
         var pkt={timestamp_us:d.timestamp_us||0,pedals:d.pedals||[0,0,0],levers:d.levers||[0,0,0,0,0],
@@ -317,11 +268,16 @@ function toggleW(){if(wsConn){wsConn.close();wsConn=null;document.getElementById
           volume:d.volume!=null?d.volume:0,bar_position:d.bar_position!=null?d.bar_position:null,
           bar_confidence:d.bar_confidence||0,bar_source:d.bar_source||'None',bar_sensors:d.bar_sensors||[0,0,0,0],
           string_pitches_hz:d.string_pitches_hz||new Array(10).fill(0),string_active:d.string_active?d.string_active.map(Boolean):new Array(10).fill(false),
-          attacks:d.attacks?d.attacks.map(Boolean):new Array(10).fill(false),string_amp:d.string_amp||new Array(10).fill(0)};
-        for(var i=0;i<OM.length;i++)if(f.attacks&&f.attacks[i])atkFlash[i]=0.4;pushFrame(f)}
+          attacks:d.attacks?d.attacks.map(Boolean):new Array(10).fill(false)};
+        var wNow=performance.now()/1000,wDt=wsLastT>0?Math.min(wNow-wsLastT,.05):.016;wsLastT=wNow;
+        for(var i=0;i<OM.length;i++){
+          if(f.attacks[i]){wsAmp[i]=wsAmp[i]<.1?1:Math.max(wsAmp[i],.6);atkFlash[i]=0.4}
+          wsAmp[i]*=Math.exp((f.string_active[i]?-1.2:-12)*wDt);
+          if(wsAmp[i]<AMP_FLOOR)wsAmp[i]=0}
+        f.string_amp=wsAmp.slice();pushFrame(f)}
       }catch(er){console.error('WS parse',er)}};
     wsConn.onclose=function(){document.getElementById('bw').classList.remove('on');wsConn=null;
-      if(curSrc==='ws'){curSrc='sim';rebuildSourceUI()}};
+      if(curSrc==='ws'){curSrc=null;rebuildSourceUI()}};
     wsConn.onerror=function(){wsConn.close()}}catch(e){console.error('WS',e)}}
 
 // ═══ INSTRUMENT VIEW — flat layout ═══
@@ -742,6 +698,7 @@ function drawTab(){
       if(fr.pedals)for(var p=0;p<fr.pedals.length;p++)if((fr.pedals[p]||0)>.5){
         tabLetter+=(TAB_PED[p]||'');fullName+=(fullName?'+':'')+(PNM[p]||('P'+(p+1)))}
       if(fr.knee_levers)for(var k=0;k<fr.knee_levers.length;k++)if((fr.knee_levers[k]||0)>.5){
+        tabLetter+=(TAB_LEV[k]||'');
         fullName+=(fullName?'+':'')+(LNM[k]||('L'+(k+1)))}
       // Render: fret number + standard letter(s) same size, right-adjacent
       var fontSize=sH*.5;
@@ -834,17 +791,11 @@ var prevTime=performance.now();
 function mainLoop(now){
   var dt=(now-prevTime)/1000;prevTime=now;if(dt>.1)dt=.016;
   for(var i=0;i<atkFlash.length;i++)if(atkFlash[i]>0)atkFlash[i]=Math.max(0,atkFlash[i]-dt);
-  // Source-driven packet generation
-  if(curSrc!=='ws'){
-    // Audio sync: when sound is on for sim, use audio clock
-    if(curSrc==='sim'&&actx&&soundOn){
-      simTime=actx.currentTime-audioStartT;
-      var pkt=simGen(0);
-      if(pkt)pushFrame(coordProcess(pkt,dt))
-    }else{
-      var wallT=now/1000;
-      var pkt=sourceNext(dt,wallT);
-      if(pkt)pushFrame(coordProcess(pkt,dt))}}
+  // Source-driven packet generation (file playback only; WS pushes its own frames)
+  if(curSrc!==null&&curSrc!=='ws'){
+    var wallT=now/1000;
+    var pkt=sourceNext(wallT);
+    if(pkt)pushFrame(coordProcess(pkt,dt))}
   updateAudio();pushCtrlHist();fc++;ft+=dt;
   if(ft>=.5){df=Math.round(fc/ft);fc=0;ft=0;document.getElementById('fps').textContent=df+'fps'}
   drawInstrument();drawStaff();drawTab();drawEnvelope();drawRoll();
@@ -855,63 +806,10 @@ S={timestamp_us:0,pedals:new Array(nP).fill(0),knee_levers:new Array(nL).fill(0)
   bar_confidence:0,bar_source:'None',bar_sensors:new Array(SFP.length).fill(0),string_pitches_hz:cpd(null,new Array(nP).fill(0),new Array(nL).fill(0)),
   string_active:new Array(nS).fill(false),attacks:new Array(nS).fill(false),string_amp:new Array(nS).fill(0)};
 
-// ═══ BUILT-IN: Gone Country (Paul Franklin / Alan Jackson) ═══
-(function(){
-  var BPM=130,beat=60000/BPM,rate=60;
-  var evts=[
-    [0,8,[0,0,0],[0,0,0,0,0],.7,[0,0,1,0,0,0,0,0,0,0]],
-    [.5,10,[0,0,0],[0,0,0,0,0],.9,[0,0,1,1,1,1,0,0,0,0]],
-    [1,10,[1,0,0],[0,0,0,0,0],.9,[0,0,1,1,1,1,0,0,0,0]],
-    [1.5,10,[0,0,0],[0,0,0,0,0],.85,[0,0,1,1,1,1,0,0,0,0]],
-    [2,10,[0,0,0],[0,0,0,0,0],.85,[0,0,1,1,1,1,0,0,0,0]],
-    [2.5,10,[1,0,0],[0,0,0,0,0],.85,[0,0,1,1,1,1,0,0,0,0]],
-    [3,8,[1,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [3.25,6.5,[1,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [3.5,5,[1,0,0],[0,0,0,0,0],.85,[0,0,1,1,1,1,0,0,0,0]],
-    [4,5,[0,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [4.5,5,[0,1,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [5,4,[1,0,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [5.25,3.5,[1,0,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [5.5,3,[1,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [6,3,[0,0,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [6.5,3,[0,1,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [7,10,[0,0,0],[0,0,0,0,0],.9,[0,0,1,1,1,1,0,0,0,0]],
-    [7.5,10,[1,0,0],[0,0,0,0,0],.9,[0,0,1,1,1,1,0,0,0,0]],
-    [8,10,[0,0,0],[0,0,0,0,0],.85,[0,0,1,1,1,1,0,0,0,0]],
-    [8.5,10,[1,0,0],[0,0,0,0,0],.85,[0,0,1,1,1,1,0,0,0,0]],
-    [9,7.5,[0,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [9.25,5,[0,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [9.5,5,[1,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [10,5,[1,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [10.5,5,[0,1,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [11,3,[0,0,0],[0,0,0,0,0],.8,[0,0,1,1,1,1,0,0,0,0]],
-    [11.5,3,[0,1,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [12,3,[1,0,0],[0,0,0,0,0],.75,[0,0,1,1,1,1,0,0,0,0]],
-    [12.5,3,[0,0,0],[0,0,0,0,0],.7,[0,0,1,1,1,1,0,0,0,0]],
-    [13,3,[0,0,0],[0,0,0,0,0],.6,[0,0,1,1,1,1,0,0,0,0]],
-    [14,3,[0,0,0],[0,0,0,0,0],.3,[0,0,0,0,0,0,0,0,0,0]],
-    [15,null,[0,0,0],[0,0,0,0,0],0,[0,0,0,0,0,0,0,0,0,0]]
-  ];
-  var totalMs=15*beat,pkts=[];
-  for(var fr=0;fr<Math.ceil(totalMs/(1000/rate));fr++){
-    var t_ms=fr*(1000/rate),tb=t_ms/beat;
-    var prev=evts[0],next=evts[evts.length-1];
-    for(var i=0;i<evts.length-1;i++){if(tb>=evts[i][0]&&tb<evts[i+1][0]){prev=evts[i];next=evts[i+1];break}}
-    if(tb>=evts[evts.length-1][0])prev=next=evts[evts.length-1];
-    var frac=(next[0]-prev[0])>0?(tb-prev[0])/(next[0]-prev[0]):0;
-    var sf=frac*frac*(3-2*frac);
-    var bar=prev[1]!==null&&next[1]!==null?prev[1]+(next[1]-prev[1])*sf:prev[1];
-    var ped=prev[2].map(function(v,i){return v+(next[2][i]-v)*sf});
-    var lev=prev[3].map(function(v,i){return v+(next[3][i]-v)*sf});
-    var vol=prev[4]+(next[4]-prev[4])*sf;
-    var picks=prev[5].map(Boolean);
-    if(bar!==null)bar+=.04*Math.sin(5.5*6.283*t_ms/1000)*vol;
-    pkts.push({t_us:Math.floor(t_ms*1000),
-      sens:bar!==null?sensResp(bar):[0,0,0,0],
-      ped:ped,lev:lev,vol:Math.round(vol*1000)/1000,
-      picks:picks})}
-  registerFileSource('gc','Gone Country',{packets:pkts,sample_rate_hz:rate,duration_s:totalMs/1000});
-})();
+// ═══ STARTUP ═══
 
-switchSource('gc');
+rebuildSourceUI();
+// Auto-connect to WebSocket; Rust opens this page when --ws is active.
+// Fails silently if server isn't running.
+setTimeout(function(){if(!wsConn)toggleW()},300);
 requestAnimationFrame(mainLoop);

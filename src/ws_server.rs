@@ -138,6 +138,9 @@ fn content_type_for(path: &str) -> &'static str {
     else if path.ends_with(".svg") { "image/svg+xml" }
     else if path.ends_with(".png") { "image/png" }
     else if path.ends_with(".html") { "text/html; charset=utf-8" }
+    else if path.ends_with(".otf") { "font/otf" }
+    else if path.ends_with(".woff") { "font/woff" }
+    else if path.ends_with(".woff2") { "font/woff2" }
     else { "application/octet-stream" }
 }
 

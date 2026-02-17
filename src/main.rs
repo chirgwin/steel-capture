@@ -73,11 +73,19 @@ struct Cli {
     #[arg(long, default_value_t = 1000)]
     sensor_rate: u32,
 
+    /// Simulator demo sequence: "basic" (default), "e9" (90s scripted tour), or "improv" (algorithmic)
+    #[arg(long, default_value = "basic")]
+    demo: String,
+
     /// Use audio-based string detection instead of simulator ground truth.
     /// Automatically enabled in hardware mode. Use with simulator to test
     /// the string detector against synthetic audio.
     #[arg(long)]
     detect_strings: bool,
+
+    /// Suppress auto-opening the browser when --ws is active.
+    #[arg(long)]
+    no_open: bool,
 }
 
 fn main() {
@@ -156,6 +164,20 @@ fn main() {
         handles.push(thread::Builder::new().name("ws-server".into()).spawn(move || {
             ws_server::WsServer::new(rx, ws_addr, ws_fps, viz_path).run();
         }).unwrap());
+
+        // Auto-open browser after a short delay for the server to bind.
+        // Suppress with --no-open.
+        if !cli.no_open {
+            let url = format!("http://{}", cli.ws_addr.replace("0.0.0.0", "localhost"));
+            handles.push(thread::Builder::new().name("browser-open".into()).spawn(move || {
+                thread::sleep(std::time::Duration::from_millis(800));
+                #[cfg(target_os = "macos")]
+                let _ = std::process::Command::new("open").arg(&url).spawn();
+                #[cfg(target_os = "linux")]
+                let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+                info!("Browser opened at {}", url);
+            }).unwrap());
+        }
     }
 
     // ─── GUI channel (created before coordinator, consumed on main thread) ──
@@ -186,7 +208,8 @@ fn main() {
         let sim_cop = copedant.clone();
         let rate = cli.sensor_rate;
         handles.push(thread::Builder::new().name("simulator".into()).spawn(move || {
-            simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run();
+            let demo = cli.demo.clone();
+            simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run(&demo);
         }).unwrap());
     } else {
         #[cfg(feature = "hardware")]
@@ -206,8 +229,9 @@ fn main() {
             let sim_tx = input_tx.clone();
             let sim_cop = copedant.clone();
             let rate = cli.sensor_rate;
+            let demo = cli.demo.clone();
             handles.push(thread::Builder::new().name("simulator".into()).spawn(move || {
-                simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run();
+                simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run(&demo);
             }).unwrap());
         }
     }

@@ -6,6 +6,9 @@
 <title>Steel Capture</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+/* Bravura: place Bravura.otf (from smufl.org) alongside visualization.html
+   for correct music glyph rendering in all browsers (required on Safari). */
+@font-face{font-family:'Bravura';src:url('Bravura.woff2') format('woff2'),url('Bravura.otf') format('opentype');font-weight:normal;font-display:swap}
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#06060e;--panel:#0b0b16;--border:#161628;--bhi:#252540;--txt:#8a8aaa;--thi:#c8c8e0;--bar:#1abc9c;--sen:#27ae60;--aud:#f1c40f;--ped:#e67e22;--lev:#2980b9;--vol:#9b59b6;--red:#e74c3c}
 body{background:var(--bg);color:var(--txt);font-family:'IBM Plex Mono',monospace;overflow:hidden;height:100vh;display:flex;flex-direction:column}
