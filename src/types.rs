@@ -135,6 +135,11 @@ pub struct CaptureFrame {
     /// True only on the frame where a string transitions from inactive→active.
     /// Computed by the coordinator from string_active transitions.
     pub attacks: [bool; 10],
+    /// Per-string amplitude from Goertzel spectral analysis.
+    /// Smoothed energy at each string's expected frequency; 0.0 = silent.
+    /// Values are empirical (Goertzel magnitude / window_size after smoothing).
+    /// In simulator mode, derived from synthetic audio.
+    pub string_amplitude: [f32; 10],
 }
 
 impl fmt::Display for CaptureFrame {

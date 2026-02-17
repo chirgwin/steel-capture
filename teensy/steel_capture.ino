@@ -4,21 +4,25 @@
  * Reads 9 analog channels at 1kHz and sends binary frames over USB serial.
  *
  * Channel mapping:
- *   A0: Pedal A (hall sensor)
- *   A1: Pedal B (hall sensor)
- *   A2: Pedal C (hall sensor)
- *   A3: Knee lever LKL
- *   A4: Knee lever LKR
- *   A5: Knee lever LKV
- *   A6: Knee lever RKL
- *   A7: Knee lever RKR
- *   A8: Volume pedal
+ *   A0:  Pedal A (pot)
+ *   A1:  Pedal B (pot)
+ *   A2:  Pedal C (pot)
+ *   A3:  Knee lever LKL (pot)
+ *   A4:  Knee lever LKR (pot)
+ *   A5:  Knee lever LKV (pot)
+ *   A6:  Knee lever RKL (pot)
+ *   A7:  Knee lever RKR (pot)
+ *   A8:  Volume pedal (pot, tapped)
+ *   A9:  Bar SS49E fret 0
+ *   A10: Bar SS49E fret 5
+ *   A11: Bar SS49E fret 10
+ *   A12: Bar SS49E fret 15
  *
- * Binary protocol (26 bytes per frame):
+ * Binary protocol (34 bytes per frame):
  *   [0:2]   Sync word (0xBEEF, little-endian)
  *   [2:6]   Timestamp (microseconds, uint32, little-endian)
- *   [6:24]  9× ADC values (uint16, little-endian each)
- *   [24:26] CRC-16/CCITT-FALSE (little-endian)
+ *   [6:32]  13× ADC values (uint16, little-endian each)
+ *   [32:34] CRC-16/CCITT-FALSE (little-endian)
  *
  * Upload via Arduino IDE or PlatformIO with Teensy 4.1 board selected.
  */
@@ -27,17 +31,18 @@
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-#define NUM_CHANNELS    9
+#define NUM_CHANNELS    13
 #define SAMPLE_RATE_HZ  1000
 #define ADC_RESOLUTION  12  // Teensy 4.1 supports 10, 12, or 16 bit
 #define BAUD_RATE       115200
-#define FRAME_SIZE      26
+#define FRAME_SIZE      34
 
 const uint8_t ANALOG_PINS[NUM_CHANNELS] = {
-    A0, A1, A2,     // Pedals A, B, C
-    A3, A4, A5,     // Knee levers LKL, LKR, LKV
-    A6, A7,         // Knee levers RKL, RKR
-    A8              // Volume pedal
+    A0, A1, A2,         // Pedals A, B, C
+    A3, A4, A5,         // Knee levers LKL, LKR, LKV
+    A6, A7,             // Knee levers RKL, RKR
+    A8,                 // Volume pedal
+    A9, A10, A11, A12   // Bar SS49E at frets 0, 5, 10, 15
 };
 
 const uint16_t SYNC_WORD = 0xBEEF;

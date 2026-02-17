@@ -528,7 +528,7 @@ fn test_string_detector_standalone_resolution() {
     det.analysis_window = samples.len().min(det.analysis_window);
     det.samples_since_analysis = 4096;
 
-    let (active, _) = det.detect(&sensor, Some(5.0), &engine);
+    let (active, _, _) = det.detect(&sensor, Some(5.0), &engine);
 
     assert!(active[3], "string 4 should be detected");
 
@@ -593,6 +593,7 @@ fn test_ws_json_serialization() {
         string_pitches_hz: [370.0, 311.0, 415.0, 329.0, 247.0, 207.0, 185.0, 164.0, 147.0, 123.0],
         string_active: [false, false, true, true, true, false, false, false, false, false],
         attacks: [false, false, true, false, false, false, false, false, false, false],
+        string_amplitude: [0.0; 10],
     };
 
     let json = serde_json::to_string(&frame).unwrap();

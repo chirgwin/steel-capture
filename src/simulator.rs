@@ -19,6 +19,9 @@ pub struct Simulator {
     /// Uses sample count instead of wall-clock time to avoid phase
     /// discontinuities from OS scheduling jitter.
     sample_counter: u64,
+    /// When true, suppress synthetic AudioChunk events (e.g. when a real
+    /// WAV file is being streamed instead).
+    suppress_audio: bool,
 }
 
 /// Mutable state that evolves as gestures are applied.
@@ -57,7 +60,14 @@ impl Simulator {
             sample_rate: 48000,
             sensor_rate_hz,
             sample_counter: 0,
+            suppress_audio: false,
         }
+    }
+
+    /// Suppress synthetic audio output (use when a real WAV file is being streamed).
+    pub fn with_suppress_audio(mut self) -> Self {
+        self.suppress_audio = true;
+        self
     }
 
     /// Run a named demo sequence. `demo` is one of "basic" or "e9".
@@ -227,8 +237,9 @@ impl Simulator {
 
         // Synthetic audio: generate sine waves matching the current pitch state.
         // Uses sample_counter for phase-continuous audio across ticks.
+        // Suppressed when a real WAV file is being streamed instead.
         let any_active = state.string_active.iter().any(|&a| a);
-        if state.bar_fret.is_some() && state.volume > 0.01 && any_active {
+        if !self.suppress_audio && state.bar_fret.is_some() && state.volume > 0.01 && any_active {
             let chunk = self.generate_audio(state, ts);
             let _ = self.tx.send(InputEvent::Audio(chunk));
         }

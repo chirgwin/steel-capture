@@ -83,7 +83,7 @@ impl Coordinator {
 
                     // === STRING DETECTION ===
                     // Determine which strings are active and detect attacks.
-                    let (string_active, audio_attacks) = if self.use_audio_detection {
+                    let (string_active, audio_attacks, string_amplitude) = if self.use_audio_detection {
                         // Hardware mode: use audio-based detection
                         self.string_detector.detect(
                             &sensor,
@@ -92,13 +92,13 @@ impl Coordinator {
                         )
                     } else {
                         // Simulator mode: use ground truth from sensor frame.
-                        // Still run the detector for diagnostics but don't use its output.
-                        let _ = self.string_detector.detect(
+                        // Still run the detector for diagnostics; take its amplitude.
+                        let (_, _, amp) = self.string_detector.detect(
                             &sensor,
                             bar_state.position,
                             &self.engine,
                         );
-                        (sensor.string_active, [false; 10])
+                        (sensor.string_active, [false; 10], amp)
                     };
 
                     // === ATTACK DETECTION ===
@@ -169,6 +169,7 @@ impl Coordinator {
                         string_pitches_hz: pitches,
                         string_active,
                         attacks,
+                        string_amplitude,
                     };
 
                     for tx in &self.frame_txs {

@@ -11,15 +11,16 @@ use std::time::Duration;
 /// |--------|------|--------------|
 /// | 0      | 2    | sync (0xBEEF)|
 /// | 2      | 4    | timestamp_us (u32, wrapping) |
-/// | 6      | 2×9  | ADC values (u16 × 9 channels) |
-/// | 24     | 2    | CRC16        |
-/// | Total: 26 bytes              |
+/// | 6      | 2×13 | ADC values (u16 × 13 channels) |
+/// | 32     | 2    | CRC16        |
+/// | Total: 34 bytes              |
 ///
 /// Channel order: A0=pedal_A, A1=pedal_B, A2=pedal_C,
-///   A3=LKL, A4=LKR, A5=LKV, A6=RKL, A7=RKR, A8=volume
-const FRAME_SIZE: usize = 26;
+///   A3=LKL, A4=LKR, A5=LKV, A6=RKL, A7=RKR, A8=volume,
+///   A9=bar_fret0, A10=bar_fret5, A11=bar_fret10, A12=bar_fret15
+const FRAME_SIZE: usize = 34;
 const SYNC_WORD: u16 = 0xBEEF;
-const NUM_CHANNELS: usize = 9;
+const NUM_CHANNELS: usize = 13;
 
 /// Calibration: maps raw ADC (0–4095 for Teensy's 12-bit ADC) to 0.0–1.0.
 /// Each channel has min/max raw values.
@@ -209,6 +210,9 @@ fn parse_frame(
             calibrated[6], calibrated[7],
         ],
         volume: calibrated[8],
+        bar_sensors: [calibrated[9], calibrated[10], calibrated[11], calibrated[12]],
+        // Hardware doesn't know which strings are picked — audio detection handles this.
+        string_active: [false; 10],
     })
 }
 

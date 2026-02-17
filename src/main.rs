@@ -2,6 +2,7 @@ use steel_capture::coordinator;
 use steel_capture::copedant::buddy_emmons_e9;
 use steel_capture::simulator;
 use steel_capture::types::*;
+use steel_capture::wav_player;
 #[cfg(feature = "gui")]
 use steel_capture::webview_app;
 #[cfg(feature = "hardware")]
@@ -86,6 +87,13 @@ struct Cli {
     /// Suppress auto-opening the browser when --ws is active.
     #[arg(long)]
     no_open: bool,
+
+    /// Stream a WAV file as the audio input instead of simulator-generated audio.
+    /// Enables audio-based string detection automatically.
+    /// Use with --simulate to provide real audio while the simulator supplies
+    /// pedal/lever/bar ground truth. WAV must be mono or stereo; 48kHz recommended.
+    #[arg(long)]
+    audio_file: Option<PathBuf>,
 }
 
 fn main() {
@@ -187,7 +195,8 @@ fn main() {
     // ─── Coordinator ────────────────────────────────────────────────
     let cop2 = copedant.clone();
     let audio_tx = if cli.log_data { Some(audio_log_tx) } else { None };
-    let use_audio_detect = cli.detect_strings || !cli.simulate;
+    // Audio detection is on when: hardware mode, --detect-strings, or a WAV file is provided.
+    let use_audio_detect = cli.detect_strings || !cli.simulate || cli.audio_file.is_some();
     handles.push(thread::Builder::new().name("coordinator".into()).spawn(move || {
         let mut coord = coordinator::Coordinator::new(input_rx, frame_txs, audio_tx, cop2)
             .with_audio_detection(use_audio_detect);
@@ -201,10 +210,22 @@ fn main() {
         let sim_tx = input_tx.clone();
         let sim_cop = copedant.clone();
         let rate = cli.sensor_rate;
+        let suppress_audio = cli.audio_file.is_some();
         handles.push(thread::Builder::new().name("simulator".into()).spawn(move || {
             let demo = cli.demo.clone();
-            simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run(&demo);
+            let mut sim = simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate);
+            if suppress_audio { sim = sim.with_suppress_audio(); }
+            sim.run(&demo);
         }).unwrap());
+
+    // ─── WAV file audio input ────────────────────────────────────────
+    if let Some(path) = cli.audio_file.clone() {
+        let wav_clock = clock.clone();
+        let wav_tx = input_tx.clone();
+        handles.push(thread::Builder::new().name("wav-player".into()).spawn(move || {
+            wav_player::WavPlayer::new(path, wav_tx, wav_clock).run();
+        }).unwrap());
+    }
     } else {
         #[cfg(feature = "hardware")]
         {

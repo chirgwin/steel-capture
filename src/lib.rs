@@ -8,6 +8,7 @@ pub mod osc_sender;
 pub mod simulator;
 pub mod string_detector;
 pub mod types;
+pub mod wav_player;
 pub mod ws_server;
 
 #[cfg(feature = "hardware")]
