@@ -631,44 +631,74 @@ fn chord_transition(g: &mut Vec<Gesture>, old: &ChordV, new: &ChordV,
         if new.lev[i] { g.push(Gesture::LeverEngage { index: i, ms: if slow_lev { sq } else { 120 } }); }
     }
 
-    // Occasional micro-swell for expression (~1 in 5 transitions)
-    if rng.one_in(5) {
-        let base = 0.82_f32;
-        let peak = base + 0.06;
-        let dur  = beat * 2;
-        g.push(Gesture::VolumeSwell { from: base, to: peak, ms: dur });
-        g.push(Gesture::VolumeSwell { from: peak, to: base, ms: dur });
-    }
 }
 
 /// Algorithmic improvisation — weighted random walk over the E9 chord vocabulary.
 ///
 /// Generates `total_beats` beats of musically coherent gestures at 72 BPM.
+/// Volume pedal is active throughout: duck-and-swell attacks, phrase arcs, breathing.
 /// Pass different `seed` values for different performances.
 fn improvise_sequence(seed: u64, total_beats: u32) -> Vec<Gesture> {
     let beat = 833_u32;   // 72 BPM
     let mut rng = Rng::new(seed);
     let mut g = Vec::<Gesture>::new();
 
-    // Intro: place bar, swell in
+    // Intro: silence → place bar → pick → swell in
     g.push(Gesture::Hold { ms: 300 });
     g.push(Gesture::BarPlace { fret: 0.0 });
-    g.push(Gesture::PickStrings { strings: CHORD_VOCAB[0].strings.to_vec() }); // E major
+    g.push(Gesture::PickStrings { strings: CHORD_VOCAB[0].strings.to_vec() });
     g.push(Gesture::VolumeSwell { from: 0.0, to: 0.82, ms: beat + beat / 2 });
     g.push(Gesture::Hold { ms: beat * 2 });
 
+    let mut cur_vol: f32 = 0.82;    // volume pedal position we last set
     let mut elapsed_beats: u32 = 5;
     let mut cur_idx: usize = 0;
     let end_beats = total_beats.saturating_sub(12);
 
+    // Phrase tracking: arc vol up to a peak then trail off at phrase end
+    let mut phrase_beats_left: u32 = rng.range(8, 13);
+    let mut phrase_peak: f32 = 0.82 + rng.range(0, 8) as f32 * 0.01;
+
     while elapsed_beats < end_beats {
+        // ── Phrase boundary: trail off, reset peak ──────────────────────
+        if phrase_beats_left == 0 {
+            let trail = 0.50 + rng.range(0, 18) as f32 * 0.01; // 0.50–0.67
+            if cur_vol > trail + 0.04 {
+                g.push(Gesture::VolumeSwell { from: cur_vol, to: trail, ms: beat });
+                cur_vol = trail;
+                elapsed_beats += 1;
+            }
+            phrase_peak = 0.78 + rng.range(0, 10) as f32 * 0.01; // 0.78–0.87
+            phrase_beats_left = rng.range(8, 13);
+        }
+
         let next_idx = pick_next_chord(cur_idx, &mut rng);
         let cur  = &CHORD_VOCAB[cur_idx];
         let next = &CHORD_VOCAB[next_idx];
 
+        // ── Duck-and-swell attack (~70% of transitions) ──────────────────
+        // The most idiomatic steel move: dip vol before the chord "speaks",
+        // then swell up as it blooms. Absent on fast passing-chord changes.
+        let do_duck = !next.passing && !rng.one_in(3);
+        if do_duck && cur_vol > 0.25 {
+            let duck_to  = 0.06 + rng.range(0, 12) as f32 * 0.01; // 0.06–0.17
+            let duck_ms  = beat / 3 + rng.range(0, beat / 5);
+            g.push(Gesture::VolumeSwell { from: cur_vol, to: duck_to, ms: duck_ms });
+            cur_vol = duck_to;
+        }
+
         chord_transition(&mut g, cur, next, &mut rng, beat);
 
-        // Hold: 1–2 beats for passing chords, 2–5 for normal
+        // Swell up to near phrase peak (slight randomness per chord)
+        let target = (phrase_peak + rng.range(0, 8) as f32 * 0.01 - 0.04)
+            .clamp(0.60, 0.92);
+        let swell_ms = beat / 2 + rng.range(0, beat / 2);
+        if cur_vol < target - 0.03 {
+            g.push(Gesture::VolumeSwell { from: cur_vol, to: target, ms: swell_ms });
+            cur_vol = target;
+        }
+
+        // ── Hold ──────────────────────────────────────────────────────────
         let hold_beats = if next.passing {
             rng.range(1, 2)
         } else {
@@ -676,23 +706,42 @@ fn improvise_sequence(seed: u64, total_beats: u32) -> Vec<Gesture> {
         };
         g.push(Gesture::Hold { ms: beat * hold_beats });
 
-        // Occasional vibrato (25% chance, non-passing only)
+        // ── Mid-hold breathing (≥3-beat holds, 40% chance) ───────────────
+        // Gentle dip and return — the pedal never truly rests.
+        if !next.passing && hold_beats >= 3 && rng.one_in(2) {
+            let dip_frac = 0.62 + rng.range(0, 15) as f32 * 0.01; // 0.62–0.77
+            let dip_to   = cur_vol * dip_frac;
+            let dip_ms   = beat * 2 / 3;
+            g.push(Gesture::VolumeSwell { from: cur_vol, to: dip_to, ms: dip_ms });
+            g.push(Gesture::Hold { ms: beat / 3 });
+            g.push(Gesture::VolumeSwell { from: dip_to, to: cur_vol, ms: dip_ms });
+        }
+
+        // ── Occasional peak swell mid-hold (expressive push, ~1 in 6) ────
+        if !next.passing && hold_beats >= 3 && rng.one_in(6) {
+            let push_to = (cur_vol + 0.08).clamp(0.0, 0.95);
+            g.push(Gesture::VolumeSwell { from: cur_vol, to: push_to, ms: beat });
+            g.push(Gesture::VolumeSwell { from: push_to, to: cur_vol, ms: beat });
+        }
+
+        // ── Vibrato (25% chance, non-passing only) ───────────────────────
         if !next.passing && rng.one_in(4) {
             let width = 0.08 + rng.range(0, 7) as f32 * 0.01;
             g.push(Gesture::BarVibrato { width, rate_hz: 5.2, ms: beat * 2 });
             elapsed_beats += 2;
         }
 
-        elapsed_beats += hold_beats + 2; // +2 for transition overhead estimate
+        elapsed_beats += hold_beats + 2;
+        phrase_beats_left = phrase_beats_left.saturating_sub(hold_beats + 2);
         cur_idx = next_idx;
-        info!("  improv: {} → {} (hold {} beats)", cur.label, next.label, hold_beats);
+        info!("  improv: {} → {} (hold {} beats, vol {:.2})", cur.label, next.label, hold_beats, cur_vol);
     }
 
-    // Outro: resolve to E major, fade
+    // Outro: resolve to E major, long fade
     chord_transition(&mut g, &CHORD_VOCAB[cur_idx], &CHORD_VOCAB[0], &mut rng, beat);
     g.push(Gesture::Hold { ms: beat * 2 });
     g.push(Gesture::BarVibrato { width: 0.10, rate_hz: 5.2, ms: beat * 4 });
-    g.push(Gesture::VolumeSwell { from: 0.82, to: 0.0, ms: beat * 5 });
+    g.push(Gesture::VolumeSwell { from: cur_vol, to: 0.0, ms: beat * 5 });
     g.push(Gesture::MuteAll);
     g.push(Gesture::BarLift);
     g.push(Gesture::Hold { ms: beat });
