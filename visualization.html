@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steel Capture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06060e;--panel:#0b0b16;--border:#161628;--bhi:#252540;--txt:#8a8aaa;--thi:#c8c8e0;--bar:#1abc9c;--sen:#27ae60;--aud:#f1c40f;--ped:#e67e22;--lev:#2980b9;--vol:#9b59b6;--red:#e74c3c}
+body{background:var(--bg);color:var(--txt);font-family:'IBM Plex Mono',monospace;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:32px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
+.ht{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:var(--thi);letter-spacing:3px;text-transform:uppercase}.ht span{color:var(--bar)}
+.hr_{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.fps{font-size:9px;color:#444;width:50px}
+.btn{background:0;border:1px solid var(--bhi);color:var(--txt);padding:2px 10px;font-family:inherit;font-size:9px;cursor:pointer;border-radius:2px;letter-spacing:1px;text-transform:uppercase;transition:all .15s}.btn:hover{border-color:var(--bar);color:var(--thi)}.btn.on{border-color:var(--sen);color:var(--sen)}.btn.snd{border-color:var(--vol);color:var(--vol)}
+.sep{width:1px;height:16px;background:var(--border);margin:0 2px}
+.main{flex:1;display:flex;flex-direction:column;min-height:0}
+canvas{display:block;width:100%}
+#instrument{height:280px;border-bottom:1px solid var(--border);flex-shrink:0;margin-bottom:8px}
+#staffNotation{height:130px;flex-shrink:0;background:#ffffff}
+#tablature{height:240px;border-bottom:1px solid var(--border);flex-shrink:0;background:#ffffff}
+#attackStrip{height:30px;border-bottom:1px solid var(--border);flex-shrink:0}
+#pianoRoll{height:100px;flex-shrink:0}
+#fileIn{display:none}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="ht">Steel <span>Capture</span></div>
+  <div class="hr_">
+    <span class="fps" id="fps">--fps</span>
+    <span id="srcBtns"></span>
+    <div class="sep"></div>
+    <button class="btn" id="bsnd" onclick="toggleSound()">&#x1f507; Sound</button>
+    <button class="btn" id="bw" onclick="toggleW()">Live WS</button>
+    <input type="file" id="fileIn" accept=".json" onchange="handleFileLoad(event)">
+  </div>
+</div>
+<div class="main">
+<canvas id="instrument"></canvas>
+<canvas id="staffNotation"></canvas>
+<canvas id="tablature"></canvas>
+<canvas id="attackStrip"></canvas>
+<canvas id="pianoRoll"></canvas>
+</div>
+<script src="viz.js"></script>
+</body>
+</html>

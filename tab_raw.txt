@@ -1,0 +1,29 @@
+Gone Country Intro and Interlude By Paul Franklin
+Song By: Alan Jackson
+TablEdited by Jeff Rady
+
+Intro #1:
+Sys1: pickup fret 8 str3
+  col1: 10/10 G [str 3,4,5 at fret 10]
+  col2: 10A [pedal A engaged]
+  col3: 10 [continuing]
+  col4: 10 [continuing]
+  col5: 10A [pedal A again]
+  col6: 5A [slide to 5, pedal A] → D chord
+  col7: 5
+  col8: 5B [pedal B] → transitioning
+  col9: 3A [slide to 3, pedal A] → C chord
+  col10: 3
+  col11: 3B [pedal B]
+
+Sys2: 
+  col1: 10/10 G
+  col2: 10A
+  col3: 10
+  col4: 10 10A
+  col5: 5 5 D
+  col6: 5A 5A
+  col7: 5B
+  col8: 3 3 3B C
+  col9: 3A H [hammer-on]
+  col10: 3 3 G [resolve]

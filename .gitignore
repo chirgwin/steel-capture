@@ -1,0 +1,20 @@
+# Build
+/target/
+
+# Sessions (recorded data, can be large)
+/sessions/
+/test_sessions/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/

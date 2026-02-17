@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steel Capture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06060e;--panel:#0b0b16;--border:#161628;--bhi:#252540;--txt:#8a8aaa;--thi:#c8c8e0;--bar:#1abc9c;--sen:#27ae60;--aud:#f1c40f;--ped:#e67e22;--lev:#2980b9;--vol:#9b59b6;--red:#e74c3c}
+body{background:var(--bg);color:var(--txt);font-family:'IBM Plex Mono',monospace;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:32px;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
+.ht{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:var(--thi);letter-spacing:3px;text-transform:uppercase}.ht span{color:var(--bar)}
+.hr_{display:flex;gap:8px;align-items:center}
+.fps{font-size:9px;color:#444;width:50px}
+.btn{background:0;border:1px solid var(--bhi);color:var(--txt);padding:2px 10px;font-family:inherit;font-size:9px;cursor:pointer;border-radius:2px;letter-spacing:1px;text-transform:uppercase;transition:all .15s}.btn:hover{border-color:var(--bar);color:var(--thi)}.btn.on{border-color:var(--sen);color:var(--sen)}.btn.snd{border-color:var(--vol);color:var(--vol)}
+.main{flex:1;display:flex;flex-direction:column;min-height:0}
+canvas{display:block;width:100%}
+#instrument{height:220px;border-bottom:1px solid var(--border);flex-shrink:0}
+#staffNotation{height:260px;border-bottom:1px solid var(--border);flex-shrink:0}
+#attackStrip{height:36px;border-bottom:1px solid var(--border);flex-shrink:0}
+#tablature{height:140px;border-bottom:1px solid var(--border);flex-shrink:0}
+#pianoRoll{flex:1;min-height:40px}
+</style>
+</head>
+<body>
+<div class="hdr"><div class="ht">Steel <span>Capture</span></div><div class="hr_"><span class="fps" id="fps">--fps</span><button class="btn on" id="bd" onclick="toggleD()">Demo</button><button class="btn" id="bsnd" onclick="toggleSound()">&#x1f507; Sound</button><button class="btn" id="bw" onclick="toggleW()">Live WS</button></div></div>
+<div class="main">
+<canvas id="instrument"></canvas>
+<canvas id="staffNotation"></canvas>
+<canvas id="attackStrip"></canvas>
+<canvas id="tablature"></canvas>
+<canvas id="pianoRoll"></canvas>
+</div>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  STEEL CAPTURE — Browser Visualization
+//  Architecture: SimSource → Coordinator → FrameBuffer → Renderers
+//  Layout: Full-width, playhead at right edge, no sidebar
+// ═══════════════════════════════════════════════════════════════════
+
+// ═══ CONFIG ═══
+var SC=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#2980b9','#9b59b6','#8e44ad','#e91e63'];
+var OM=[66,63,68,64,59,56,54,52,50,47];
+var NN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+var PC=[[[4,2],[9,2]],[[2,1],[5,1]],[[3,2],[4,2]]];
+var LC=[[[3,-1],[7,-1]],[[3,1],[7,1]],[],[[0,1]],[[1,2]]];
+var PS=[[4,9],[2,5],[3,4]];
+var LS=[[3,7],[3,7],[],[0],[1]];
+var ML=40,MH=90,RS=24,HM=1440,AMP_FLOOR=0.01;
+
+// ═══ COPEDANT ═══
+function cpd(fret,ped,lev){var r=[];
+  for(var i=0;i<10;i++){var m=OM[i];
+    for(var j=0;j<3;j++)for(var k=0;k<PC[j].length;k++){var e=PC[j][k];if(e[0]===i)m+=e[1]*ped[j]}
+    for(var j2=0;j2<5;j2++)for(var k2=0;k2<LC[j2].length;k2++){var e2=LC[j2][k2];if(e2[0]===i)m+=e2[1]*(lev[j2]||0)}
+    if(fret!==null)m+=fret;r.push(440*Math.pow(2,(m-69)/12))}return r}
+function h2m(hz){return 69+12*Math.log2(hz/440)}
+function m2n(m){var ri=Math.round(m);return NN[((ri%12)+12)%12]+(Math.floor(ri/12)-1)}
+function sm(t){t=Math.max(0,Math.min(1,t));return t*t*(3-2*t)}
+
+// ═══ COORDINATOR (mirrors Rust) ═══
+var coord={prevActive:new Array(10).fill(false),prevPedalEng:[false,false,false],
+  prevLeverEng:new Array(5).fill(false),amp:new Array(10).fill(0)};
+function coordProcess(raw,dt){
+  var pitches=cpd(raw.bar_pos,raw.pedals,raw.levers);
+  var atk=new Array(10).fill(false);
+  for(var i=0;i<10;i++){if(raw.picks[i]&&!coord.prevActive[i])atk[i]=true}
+  var pe=[raw.pedals[0]>.5,raw.pedals[1]>.5,raw.pedals[2]>.5];
+  for(var j=0;j<3;j++){if(pe[j]!==coord.prevPedalEng[j])for(var k=0;k<PS[j].length;k++)if(raw.picks[PS[j][k]])atk[PS[j][k]]=true}
+  coord.prevPedalEng=pe;
+  var le=[];for(var j2=0;j2<5;j2++)le.push((raw.levers[j2]||0)>.5);
+  for(var j2=0;j2<5;j2++){if(le[j2]!==coord.prevLeverEng[j2])for(var k2=0;k2<LS[j2].length;k2++)if(raw.picks[LS[j2][k2]])atk[LS[j2][k2]]=true}
+  coord.prevLeverEng=le;coord.prevActive=raw.picks.slice();
+  for(var i=0;i<10;i++){
+    if(atk[i]){coord.amp[i]=(raw.picks[i]&&coord.amp[i]<.1)?1:Math.max(coord.amp[i],.6);atkFlash[i]=0.4}
+    coord.amp[i]*=Math.exp((raw.picks[i]?-1.2:-12)*dt);if(coord.amp[i]<AMP_FLOOR)coord.amp[i]=0}
+  return{timestamp_us:raw.timestamp_us,pedals:raw.pedals.slice(),knee_levers:raw.levers.slice(),
+    volume:raw.volume,bar_position:raw.bar_pos,bar_confidence:raw.bar_conf,bar_source:raw.bar_src,
+    bar_sensors:raw.bar_sens.slice(),string_pitches_hz:pitches,string_active:raw.picks.slice(),
+    attacks:atk,string_amp:coord.amp.slice()}}
+function coordReset(){coord.prevActive=new Array(10).fill(false);coord.prevPedalEng=[false,false,false];
+  coord.prevLeverEng=new Array(5).fill(false);coord.amp=new Array(10).fill(0)}
+
+// ═══ FRAME BUFFER ═══
+var S=null,H=[],atkFlash=new Array(10).fill(0);
+function pushFrame(f){S=f;H.push(f);if(H.length>HM)H.splice(0,H.length-HM)}
+
+// ═══ SIMULATOR ═══
+var simTime=0,simPhase=-1,simPicks=new Array(10).fill(false);
+function simSet(a){simPicks=new Array(10).fill(false);for(var i=0;i<a.length;i++)if(a[i]<10)simPicks[a[i]]=true}
+function simGen(dt){
+  simTime+=dt;var t=simTime,ph=-1,ped=[0,0,0],lev=[0,0,0,0,0],bar=3,vol=0,src='None',conf=0,sens=[0,0,0,0];
+  if(t<1){ph=0;bar=3;vol=0;src='Sensor';if(simPhase!==ph)simSet([])}
+  else if(t<3){ph=1;var p=(t-1)/2;bar=3+.06*Math.sin(5.2*6.283*t)*sm(Math.min(1,p*2));
+    vol=sm(Math.min(1,p*1.5));src=vol>.1?'Fused':'Sensor';if(simPhase!==ph)simSet([2,3,4])}
+  else if(t<5.5){ph=2;var p2=(t-3)/2.5;bar=3+.05*Math.sin(5*6.283*t);vol=.75+.1*Math.sin(.8*6.283*t);
+    if(p2<.25)ped[1]=sm(p2/.25);else if(p2<.65)ped[1]=1;else ped[1]=1-sm((p2-.65)/.25);src='Fused'}
+  else if(t<8){ph=3;var p3=(t-5.5)/2.5;
+    if(p3<.2)bar=3;else if(p3<.5)bar=3+5*sm((p3-.2)/.3);else bar=8+.06*Math.sin(5.3*6.283*t);
+    vol=.8+.08*Math.sin(1.2*6.283*t);src='Fused';if(simPhase!==ph)simSet([2,3,4,5])}
+  else if(t<10.5){ph=4;var p4=(t-8)/2.5;
+    if(p4<.1)bar=8;else if(p4<.45)bar=8-5*sm((p4-.1)/.35);else bar=3+.05*Math.sin(5.5*6.283*t);
+    if(p4>.5&&p4<.85){var pp=(p4-.5)/.35;ped[0]=pp<.4?sm(pp/.4):1-sm((pp-.6)/.4)}
+    vol=.7+.15*sm(p4);src='Fused'}
+  else if(t<13){ph=5;var p5=(t-10.5)/2.5;
+    if(p5<.35)bar=3+2*sm(p5/.35);else if(p5<.65){bar=5+.04*Math.sin(5*6.283*t);lev[0]=sm((p5-.35)/.15)}
+    else{bar=5-2*sm((p5-.65)/.3);lev[0]=1-sm((p5-.65)/.2)}
+    vol=.65+.2*Math.sin(.7*6.283*t);src='Fused';if(simPhase!==ph)simSet([3,4,5,7,9])}
+  else if(t<15.5){ph=6;var p6=(t-13)/2.5;
+    if(p6<.3)bar=3+5*sm(p6/.3);else bar=8+.05*Math.sin(5.2*6.283*t);
+    if(p6>.4&&p6<.85){var pp2=(p6-.4)/.45;ped[0]=pp2<.3?sm(pp2/.3):(pp2>.7?1-sm((pp2-.7)/.3):1)}
+    vol=.8;src='Fused';if(simPhase!==ph)simSet([2,3,4])}
+  else if(t<18){ph=7;var p7=(t-15.5)/2.5;
+    if(p7<.15)vol=.8-.5*sm(p7/.15);else if(p7<.4)vol=.3+.6*sm((p7-.15)/.25);else vol=.9;
+    if(p7<.1)bar=8;else if(p7<.35)bar=8-5*sm((p7-.1)/.25);else bar=3+.08*Math.sin(5.5*6.283*t);
+    if(p7>.4&&p7<.9)ped[1]=sm(Math.min(1,(p7-.4)/.12));if(p7>.75)ped[1]=1-sm((p7-.75)/.15);
+    src=vol<.15?'Sensor':'Fused';if(simPhase!==ph)simSet([2,3,4,5])}
+  else if(t<20.5){ph=8;var p8=(t-18)/2.5;
+    if(p8<.3)bar=3+7*sm(p8/.3);else if(p8<.55)bar=10+.04*Math.sin(5.2*6.283*t);
+    else bar=10-7*sm((p8-.55)/.35);
+    if(p8>.2&&p8<.5)lev[3]=sm(Math.min(1,(p8-.2)/.1));if(p8>.4)lev[3]=Math.max(0,1-sm((p8-.4)/.1));
+    vol=.85-.15*sm(Math.max(0,(p8-.7)/.3));src='Fused';if(simPhase!==ph)simSet([0,2,4,5,7])}
+  else if(t<25){ph=9;var p9=(t-20.5)/4.5;
+    bar=3+.08*(1-p9)*Math.sin(5*6.283*t);vol=.7*(1-sm(Math.max(0,(p9-.15)/.85)));
+    src=vol>.08?(vol>.2?'Fused':'Sensor'):'Sensor'}
+  else if(t<28){ph=10;var p10=(t-25)/3;vol=0;src=p10<.4?'Sensor':'None';bar=p10<.4?3:null;if(simPhase!==ph)simSet([])}
+  else{ph=0;simTime=0;bar=null;vol=0;src='None';simSet([]);H=[];simPhase=-1;coordReset()}
+  simPhase=ph;
+  if(bar!==null){var SF=[0,5,10,15];sens=SF.map(function(s){var d=Math.abs(bar-s)/2.5;return Math.min(1,1/Math.pow(1+d*d,1.5))});
+    conf=src==='Fused'?.65:src==='Sensor'?.38:0}
+  return{timestamp_us:Math.floor(t*1e6),pedals:ped,levers:lev,bar_pos:bar,bar_conf:conf,
+    bar_src:src,bar_sens:sens,volume:vol,picks:simPicks.slice()}}
+
+// ═══ AUDIO ═══
+var actx=null,oscs=[],gains=[],masterG=null,soundOn=false,audioStartT=0;
+function initAudio(){
+  if(actx)return;actx=new(window.AudioContext||window.webkitAudioContext)();
+  var irD=2.4,irL=Math.floor(actx.sampleRate*irD),irB=actx.createBuffer(2,irL,actx.sampleRate);
+  for(var ch=0;ch<2;ch++){var d=irB.getChannelData(ch);for(var i=0;i<irL;i++){var t=i/actx.sampleRate;d[i]=(Math.random()*2-1)*Math.exp(-3*t)*(1+.5*Math.exp(-25*t))*.3}}
+  var rev=actx.createConvolver();rev.buffer=irB;
+  var comp=actx.createDynamicsCompressor();comp.threshold.value=-22;comp.knee.value=14;comp.ratio.value=5;comp.attack.value=.008;comp.release.value=.12;
+  var lp1=actx.createBiquadFilter();lp1.type='lowpass';lp1.frequency.value=1400;lp1.Q.value=1.2;
+  var lp2=actx.createBiquadFilter();lp2.type='lowpass';lp2.frequency.value=4000;lp2.Q.value=.5;
+  masterG=actx.createGain();masterG.gain.value=0;
+  var dry=actx.createGain();dry.gain.value=.5;var wet=actx.createGain();wet.gain.value=.5;
+  for(var i=0;i<10;i++){var osc=actx.createOscillator();osc.type='sawtooth';osc.frequency.value=220;
+    osc.detune.value=(i%2===0?1:-1)*(1.5+i*.4);var g=actx.createGain();g.gain.value=0;osc.connect(g);g.connect(masterG);osc.start();oscs.push(osc);gains.push(g)}
+  masterG.connect(lp1);lp1.connect(lp2);lp2.connect(comp);comp.connect(dry);comp.connect(rev);rev.connect(wet);dry.connect(actx.destination);wet.connect(actx.destination)}
+function updateAudio(){
+  if(!actx||!soundOn||!S)return;var now=actx.currentTime;
+  masterG.gain.setTargetAtTime(S.volume*.15,now,.016);
+  for(var i=0;i<10;i++){var hz=S.string_pitches_hz[i],amp=S.string_amp[i];
+    if(hz>20&&amp>AMP_FLOOR){oscs[i].frequency.setTargetAtTime(hz,now,.008);
+      gains[i].gain.setTargetAtTime(amp*(i<4?1:(i<7?.75:.5)),now,S.attacks[i]?.003:.012)}
+    else gains[i].gain.setTargetAtTime(0,now,.02)}}
+function toggleSound(){
+  if(!actx)initAudio();soundOn=!soundOn;var btn=document.getElementById('bsnd');
+  if(soundOn){actx.resume();btn.innerHTML='&#x1f50a; Sound';btn.classList.add('snd');audioStartT=actx.currentTime-simTime}
+  else{if(masterG)masterG.gain.setTargetAtTime(0,actx.currentTime,.04);btn.innerHTML='&#x1f507; Sound';btn.classList.remove('snd')}}
+
+// ═══ WS / TOGGLES ═══
+var dm=true,wsConn=null,fc=0,ft=0,df=0;
+function toggleW(){if(wsConn){wsConn.close();wsConn=null;document.getElementById('bw').classList.remove('on');return}
+  var host=location.host||'localhost:8080';
+  try{wsConn=new WebSocket('ws://'+host);
+    wsConn.onopen=function(){dm=false;document.getElementById('bd').classList.remove('on');document.getElementById('bw').classList.add('on');H=[];coordReset()};
+    wsConn.onmessage=function(e){try{var d=JSON.parse(e.data);
+      var f={timestamp_us:d.timestamp_us||0,pedals:d.pedals||[0,0,0],knee_levers:d.knee_levers||[0,0,0,0,0],
+        volume:d.volume!=null?d.volume:0,bar_position:d.bar_position!=null?d.bar_position:null,
+        bar_confidence:d.bar_confidence||0,bar_source:d.bar_source||'None',bar_sensors:d.bar_sensors||[0,0,0,0],
+        string_pitches_hz:d.string_pitches_hz||new Array(10).fill(0),string_active:d.string_active?d.string_active.map(Boolean):new Array(10).fill(false),
+        attacks:d.attacks?d.attacks.map(Boolean):new Array(10).fill(false),string_amp:d.string_amp||new Array(10).fill(0)};
+      for(var i=0;i<10;i++)if(f.attacks[i])atkFlash[i]=0.4;
+      pushFrame(f)}catch(er){console.error('WS parse',er)}};
+    wsConn.onclose=function(){document.getElementById('bw').classList.remove('on');wsConn=null};
+    wsConn.onerror=function(){wsConn.close()}}catch(e){console.error('WS',e)}}
+function toggleD(){dm=!dm;document.getElementById('bd').classList.toggle('on',dm);
+  if(dm){simTime=0;H=[];simPhase=-1;coordReset();if(actx&&soundOn)audioStartT=actx.currentTime}}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INSTRUMENT VIEW — front/player perspective of pedal steel guitar
+// ═══════════════════════════════════════════════════════════════════
+var PNM=['A','B','C'],LNM=['LKL','LKR','LKV','RKL','RKR'];
+
+function drawInstrument(){
+  var c=document.getElementById('instrument');if(!c)return;
+  var w=c.clientWidth,h=c.clientHeight;
+  if(c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2}
+  var x=c.getContext('2d');x.setTransform(2,0,0,2,0,0);x.clearRect(0,0,w,h);
+  x.fillStyle='#06060e';x.fillRect(0,0,w,h);
+  if(!S)return;
+
+  // Layout geometry — centered instrument
+  var iW=Math.min(w-40,900),iL=(w-iW)/2,iR=iL+iW;
+  var bodyTop=6,bodyH=52,bodyBot=bodyTop+bodyH;
+  var legTop=bodyBot,legBot=h-44;
+  var pedalY=h-40,pedalH=32;
+
+  // ── BODY (top surface + front face) ──
+  // Top surface (slight perspective: narrower at front)
+  var topInset=12;
+  x.fillStyle='#1a1a28';
+  x.beginPath();x.moveTo(iL,bodyTop);x.lineTo(iR,bodyTop);
+  x.lineTo(iR-topInset,bodyBot);x.lineTo(iL+topInset,bodyBot);x.closePath();x.fill();
+  // Chrome edge
+  var grd=x.createLinearGradient(0,bodyBot-4,0,bodyBot+3);
+  grd.addColorStop(0,'#666');grd.addColorStop(.4,'#aaa');grd.addColorStop(.6,'#888');grd.addColorStop(1,'#444');
+  x.fillStyle=grd;x.fillRect(iL+topInset-2,bodyBot-2,iW-topInset*2+4,5);
+  // Front face
+  x.fillStyle='#0e0e18';
+  x.fillRect(iL+topInset-2,bodyBot+3,iW-topInset*2+4,10);
+
+  // ── FRETBOARD on top surface ──
+  var fL=iL+50,fR=iR-50,fY=bodyTop+6,fH=bodyH-14;
+  x.fillStyle='#0a0a14';x.fillRect(fL,fY,fR-fL,fH);
+  // Nut (zero fret)
+  x.fillStyle='#666';x.fillRect(fL-2,fY,3,fH);
+  // Frets
+  for(var f=1;f<=15;f++){var fx=fL+(fR-fL)*(f/16);
+    x.strokeStyle='#252535';x.lineWidth=f%5===0?1.2:.6;
+    x.beginPath();x.moveTo(fx,fY);x.lineTo(fx,fY+fH);x.stroke();
+    // Fret numbers at key positions
+    if(f%3===0||f===1){x.fillStyle='#333';x.font='6px IBM Plex Mono';x.textAlign='center';
+      x.fillText(String(f),fx,fY-2)}}
+  // Dots (3,5,7,9,12,15)
+  [3,5,7,9].forEach(function(f){var fx=fL+(fR-fL)*((f-.5)/16);
+    x.fillStyle='#1e1e30';x.beginPath();x.arc(fx,fY+fH/2,2.5,0,Math.PI*2);x.fill()});
+  var fx12=fL+(fR-fL)*(11.5/16);
+  x.fillStyle='#1e1e30';x.beginPath();x.arc(fx12,fY+fH*.3,2,0,Math.PI*2);x.fill();
+  x.beginPath();x.arc(fx12,fY+fH*.7,2,0,Math.PI*2);x.fill();
+  // Strings on fretboard
+  for(var i=0;i<10;i++){var sy=fY+2+(fH-4)*(i/9);
+    x.strokeStyle=SC[i];x.globalAlpha=S.string_active[i]?.55:.12;x.lineWidth=S.string_active[i]?1:.6;
+    x.beginPath();x.moveTo(fL-4,sy);x.lineTo(fR+4,sy);x.stroke();x.globalAlpha=1;
+    // Amplitude shimmer
+    if(S.string_amp[i]>AMP_FLOOR){x.strokeStyle=SC[i];x.globalAlpha=S.string_amp[i]*.25;x.lineWidth=S.string_amp[i]*4;
+      x.beginPath();x.moveTo(fL,sy);x.lineTo(fR,sy);x.stroke();x.globalAlpha=1}}
+  // Bar on fretboard
+  if(S.bar_position!==null){var bx=fL+(fR-fL)*(S.bar_position/16);
+    x.strokeStyle='#1abc9c';x.lineWidth=4;x.lineCap='round';x.globalAlpha=.85;
+    x.beginPath();x.moveTo(bx,fY-1);x.lineTo(bx,fY+fH+1);x.stroke();
+    x.globalAlpha=.2;x.shadowColor='#1abc9c';x.shadowBlur=12;
+    x.beginPath();x.moveTo(bx,fY-1);x.lineTo(bx,fY+fH+1);x.stroke();
+    x.shadowBlur=0;x.globalAlpha=1;x.lineCap='butt'}
+
+  // ── TUNING PEGS (left side) ──
+  for(var i=0;i<10;i++){var py=fY+2+(fH-4)*(i/9);
+    x.fillStyle='#666';x.beginPath();x.arc(iL+28,py,3,0,Math.PI*2);x.fill();
+    // String number
+    x.fillStyle=S.string_active[i]?SC[i]:'#444';x.font='6px IBM Plex Mono';x.textAlign='right';
+    x.fillText(String(i+1),iL+20,py+2)}
+  // Pickup area (right end)
+  x.fillStyle='#1a1a28';x.strokeStyle='#333';x.lineWidth=1;
+  x.fillRect(fR+8,fY+2,30,fH-4);x.strokeRect(fR+8,fY+2,30,fH-4);
+  x.fillStyle='#222';
+  for(var i=0;i<10;i++){var py=fY+2+(fH-4)*(i/9);
+    x.fillRect(fR+12,py-1,22,2)}
+
+  // ── CHROME LEGS ──
+  var legInset=30;
+  function drawLeg(lx,rx){
+    var grd2=x.createLinearGradient(lx,0,rx,0);
+    grd2.addColorStop(0,'#555');grd2.addColorStop(.3,'#999');grd2.addColorStop(.7,'#888');grd2.addColorStop(1,'#444');
+    x.fillStyle=grd2;
+    // Angled legs
+    x.beginPath();
+    x.moveTo(lx,legTop+12);x.lineTo(rx,legTop+12);
+    x.lineTo(rx+legInset,legBot);x.lineTo(lx+legInset,legBot);x.closePath();x.fill();
+    // Foot
+    x.fillStyle='#333';x.beginPath();
+    x.arc(lx+legInset+(rx-lx)/2,legBot+4,6,0,Math.PI*2);x.fill()}
+  drawLeg(iL+topInset-1,iL+topInset+5);
+  drawLeg(iR-topInset-5,iR-topInset+1);
+  // Cross bar between legs
+  x.strokeStyle='#555';x.lineWidth=3;x.beginPath();
+  x.moveTo(iL+topInset+legInset+2,legBot-6);x.lineTo(iR-topInset+legInset-2,legBot-6);x.stroke();
+
+  // ── PEDAL RODS (connecting pedals to body) ──
+  var pedalL=iL+topInset+35,pedalSpacing=40;
+  for(var i=0;i<3;i++){var px=pedalL+i*pedalSpacing+16;
+    x.strokeStyle='#444';x.lineWidth=1.5;x.beginPath();
+    x.moveTo(px,bodyBot+13);x.lineTo(px,pedalY);x.stroke()}
+
+  // ── FOOT PEDALS (A, B, C) ──
+  var pW=32,pH=pedalH;
+  for(var i=0;i<3;i++){
+    var px=pedalL+i*pedalSpacing,eng=S.pedals[i];
+    var depress=eng*8;
+    // Pedal shadow
+    x.fillStyle='rgba(0,0,0,.3)';x.fillRect(px-1,pedalY+depress+2,pW+2,pH-depress);
+    // Pedal body (chrome look)
+    var pgrd=x.createLinearGradient(px,pedalY+depress,px,pedalY+pH);
+    pgrd.addColorStop(0,eng>.5?'#c87020':'#888');pgrd.addColorStop(.3,eng>.5?'#e08830':'#bbb');
+    pgrd.addColorStop(.7,eng>.5?'#d07828':'#999');pgrd.addColorStop(1,eng>.5?'#a06018':'#666');
+    x.fillStyle=pgrd;
+    x.beginPath();x.roundRect(px,pedalY+depress,pW,pH-depress,2);x.fill();
+    // Grooves
+    for(var g=0;g<3;g++){var gy=pedalY+depress+(pH-depress)*(.3+g*.2);
+      x.strokeStyle='rgba(0,0,0,.2)';x.lineWidth=.8;x.beginPath();x.moveTo(px+4,gy);x.lineTo(px+pW-4,gy);x.stroke()}
+    // Label
+    x.fillStyle=eng>.5?'#fff':'#ccc';x.font='bold 10px IBM Plex Mono';x.textAlign='center';
+    x.fillText(PNM[i],px+pW/2,pedalY+depress+(pH-depress)/2+4)}
+
+  // ── VOLUME PEDAL (right side, rocker style) ──
+  var vx=iR-topInset-50,vW=45,vEng=S.volume;
+  // Rocker base
+  x.fillStyle='#222';x.fillRect(vx-2,pedalY+pH-10,vW+4,10);
+  // Pedal body tilts
+  var vTilt=vEng*10;
+  x.save();x.translate(vx+vW/2,pedalY+pH-5);x.rotate((-0.15+vEng*0.3));
+  var vgrd=x.createLinearGradient(0,-pH+5,0,5);
+  vgrd.addColorStop(0,vEng>.3?'#8040a0':'#777');vgrd.addColorStop(.5,vEng>.3?'#a050c0':'#aaa');
+  vgrd.addColorStop(1,vEng>.3?'#7030a0':'#666');
+  x.fillStyle=vgrd;x.beginPath();x.roundRect(-vW/2,-pH+8,vW,pH-8,2);x.fill();
+  x.fillStyle=vEng>.3?'#fff':'#ccc';x.font='bold 9px IBM Plex Mono';x.textAlign='center';
+  x.fillText('VOL',-1,-4);
+  x.fillText(Math.round(vEng*100)+'%',-1,8);
+  x.restore();
+  // Rod from volume pedal to body
+  x.strokeStyle='#444';x.lineWidth=1.5;x.beginPath();
+  x.moveTo(vx+vW/2,bodyBot+13);x.lineTo(vx+vW/2,pedalY);x.stroke();
+
+  // ── KNEE LEVERS (hanging from body, between legs) ──
+  var klY=bodyBot+14,klH=legBot-bodyBot-50,klLeft=iL+topInset+iW*.25,klSpacing=22;
+  for(var i=0;i<5;i++){
+    var kx=klLeft+i*klSpacing,eng=S.knee_levers[i]||0;
+    var swing=eng*8; // lateral swing
+    // Rod
+    x.strokeStyle=eng>.3?'#4a90d9':'#555';x.lineWidth=eng>.3?3:2;
+    x.beginPath();x.moveTo(kx,klY);x.lineTo(kx+swing,klY+klH);x.stroke();
+    // Pad at bottom
+    x.fillStyle=eng>.3?'#2980b9':'#444';
+    x.beginPath();x.roundRect(kx+swing-5,klY+klH-4,10,12,2);x.fill();
+    // Label
+    x.fillStyle=eng>.3?'#2980b9':'#555';x.font='bold 6px IBM Plex Mono';x.textAlign='center';
+    x.fillText(LNM[i],kx+swing,klY+klH+16)}
+
+  // ── INFO OVERLAY ──
+  // Bar position + source
+  if(S.bar_position!==null){
+    x.fillStyle='#1abc9c';x.font='bold 14px IBM Plex Mono';x.textAlign='right';
+    x.fillText('Fret '+S.bar_position.toFixed(1),iR-10,bodyTop+16)}
+  x.fillStyle={None:'#333',Sensor:'#27ae60',Audio:'#f1c40f',Fused:'#1abc9c'}[S.bar_source]||'#333';
+  x.font='8px IBM Plex Mono';x.textAlign='right';
+  x.fillText(S.bar_source+' '+Math.round(S.bar_confidence*100)+'%',iR-10,bodyTop+26);
+  // String info (right side, compact)
+  for(var i=0;i<10;i++){
+    var hz=S.string_pitches_hz[i],name=m2n(h2m(hz));
+    var iy=fY+2+(fH-4)*(i/9);
+    x.fillStyle=S.string_active[i]?SC[i]:'#333';x.font='6px IBM Plex Mono';x.textAlign='left';
+    x.fillText(name+' '+hz.toFixed(0),iR-topInset+8,iy+2)}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TIMELINE HELPERS — playhead at right edge, full-width history
+// ═══════════════════════════════════════════════════════════════════
+var KW=34; // label gutter width
+
+// Returns {w,h,x,cX,hw,nU,wU} for timeline canvases
+// cX = playhead X (right edge), hw = full history width
+function tlSetup(canvasId,fixedH){
+  var c=document.getElementById(canvasId);if(!c)return null;
+  var w=c.clientWidth,h=fixedH||c.clientHeight;
+  if(c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2;c.style.height=h+'px'}
+  var ctx=c.getContext('2d');ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#06060e';ctx.fillRect(0,0,w,h);
+  var cX=w-12,hw=cX-KW,wU=RS*1e6;
+  var nU=H.length>0?H[H.length-1].timestamp_us:0;
+  return{c:c,w:w,h:h,x:ctx,cX:cX,hw:hw,nU:nU,wU:wU}}
+
+// Age → X position (0=right edge, RS seconds=left edge)
+function tlX(age,hw,cX,wU){return KW+hw*(1-age/wU)}
+
+// Draw playhead + time grid
+function tlGrid(t,y0,y1){
+  var x=t.x,cX=t.cX;
+  x.globalAlpha=1;var hC=S&&S.bar_position!==null&&S.volume>.02;
+  // Playhead triangle
+  x.fillStyle=hC?'rgba(26,188,156,.9)':'rgba(80,80,100,.4)';
+  x.beginPath();x.moveTo(cX-5,y0);x.lineTo(cX+5,y0);x.lineTo(cX,y0+8);x.closePath();x.fill();
+  // Playhead line
+  x.strokeStyle=hC?'rgba(26,188,156,.2)':'rgba(80,80,100,.06)';
+  x.lineWidth=1;x.beginPath();x.moveTo(cX,y0);x.lineTo(cX,y1);x.stroke();
+  // Time grid every 2s
+  for(var s=2;s<RS;s+=2){var px=KW+t.hw*(1-s*1e6/t.wU);if(px>KW){
+    x.strokeStyle='#0a0a14';x.beginPath();x.moveTo(px,y0);x.lineTo(px,y1);x.stroke();
+    // Time label at bottom
+    x.fillStyle='#222';x.font='6px IBM Plex Mono';x.textAlign='center';
+    x.fillText('-'+s+'s',px,y1-1)}}
+}
+
+// ═══ STAFF ═══
+var DM=[0,0,1,2,2,3,3,4,4,5,6,6];
+var shPC={1:1,6:1,8:1},flPC={3:1,10:1};
+var NHA=-20*Math.PI/180;
+
+function drawStaff(){
+  var t=tlSetup('staffNotation',260);if(!t)return;
+  var x=t.x,w=t.w,h=t.h;
+  var ls=11,tT=24,mCY=tT+5*ls,bT=tT+6*ls,dS=ls/2;
+  var nhA=ls*.42,nhB=nhA*1.5;
+  // Staff lines
+  x.strokeStyle='#1c1c30';x.lineWidth=.7;
+  for(var i=0;i<5;i++){
+    x.beginPath();x.moveTo(KW,tT+i*ls);x.lineTo(w-6,tT+i*ls);x.stroke();
+    x.beginPath();x.moveTo(KW,bT+i*ls);x.lineTo(w-6,bT+i*ls);x.stroke()}
+  x.fillStyle='#444';x.font=(ls*2.6)+'px serif';x.textAlign='left';
+  x.fillText('\u{1D11E}',KW-2,tT+ls*3.5);x.fillText('\u{1D122}',KW-2,bT+ls*3.5);
+
+  function m2y(mi){var ri=Math.round(mi),oct=Math.floor(ri/12),pc=((ri%12)+12)%12;
+    return mCY-(oct*7+DM[pc]-35)*dS}
+
+  if(H.length<2){tlGrid(t,2,h-8);x.setTransform(1,0,0,1,0,0);return}
+
+  // Sustain lines (continuous pitch traces)
+  for(var si=0;si<10;si++){
+    var col=SC[si],pPx=null,pY=null,pAmp=0;
+    for(var hi=0;hi<H.length;hi++){
+      var fr=H[hi],age=t.nU-fr.timestamp_us;if(age>t.wU||age<0){pPx=null;continue}
+      var amp=fr.string_amp?fr.string_amp[si]:0;
+      if(amp<AMP_FLOOR){pPx=null;pAmp=0;continue}
+      var hz=fr.string_pitches_hz[si];if(hz<20){pPx=null;continue}
+      var y=m2y(h2m(hz)),px=tlX(age,t.hw,t.cX,t.wU);
+      if(pPx!==null&&pAmp>AMP_FLOOR){
+        x.strokeStyle=col;x.globalAlpha=Math.min(.35,amp*.4);x.lineWidth=1+amp;
+        x.beginPath();x.moveTo(pPx,pY);x.lineTo(px,y);x.stroke()}
+      pPx=px;pY=y;pAmp=amp}}
+
+  // Noteheads at attacks (sorted oldest-first for natural tracking)
+  var evts=[];
+  for(var si=0;si<10;si++){for(var hi=0;hi<H.length;hi++){
+    var fr=H[hi];if(!(fr.attacks&&fr.attacks[si]))continue;
+    var age=t.nU-fr.timestamp_us;if(age>t.wU||age<0)continue;
+    var hz=fr.string_pitches_hz[si];if(hz<20||fr.volume<.02)continue;
+    evts.push({si:si,age:age,hz:hz,fr:fr})}}
+  evts.sort(function(a,b){return b.age-a.age});
+  var lastAcc={};
+  for(var ei=0;ei<evts.length;ei++){
+    var ev=evts[ei],col=SC[ev.si],fr=ev.fr,age=ev.age;
+    var mi=h2m(ev.hz),ri=Math.round(mi),pc=((ri%12)+12)%12;
+    var y=m2y(mi),px=tlX(age,t.hw,t.cX,t.wU);
+    if(y<tT-4*ls||y>bT+8*ls)continue;
+    var fA=1-.2*(age/t.wU),vA=.3+.7*fr.volume,lH=nhB+3;
+    // Ledger lines
+    x.strokeStyle='#1c1c30';x.lineWidth=.8;x.globalAlpha=vA*fA;
+    if(Math.abs(y-mCY)<1){x.beginPath();x.moveTo(px-lH,mCY);x.lineTo(px+lH,mCY);x.stroke()}
+    for(var ly=tT-ls;ly>=y-1;ly-=ls){x.beginPath();x.moveTo(px-lH,ly);x.lineTo(px+lH,ly);x.stroke()}
+    for(var ly2=bT+4*ls+ls;ly2<=y+1;ly2+=ls){x.beginPath();x.moveTo(px-lH,ly2);x.lineTo(px+lH,ly2);x.stroke()}
+    // Notehead
+    x.fillStyle=col;x.globalAlpha=vA*fA;x.beginPath();
+    for(var st=0;st<24;st++){var t2=st/24*Math.PI*2;
+      var ex=nhB*Math.cos(t2),ey=nhA*Math.sin(t2);
+      var rx=ex*Math.cos(NHA)-ey*Math.sin(NHA),ry=ex*Math.sin(NHA)+ey*Math.cos(NHA);
+      if(st===0)x.moveTo(px+rx,y+ry);else x.lineTo(px+rx,y+ry)}
+    x.closePath();x.fill();
+    // Accidental with natural cancellation
+    var oct=Math.floor(ri/12),diaStep=oct*7+DM[pc];
+    var thisAcc=shPC[pc]?'sharp':flPC[pc]?'flat':'natural';
+    var prev=lastAcc[diaStep],show=null;
+    if(!prev){if(thisAcc==='sharp')show='\u266F';else if(thisAcc==='flat')show='\u266D'}
+    else if(prev!==thisAcc){show=thisAcc==='sharp'?'\u266F':thisAcc==='flat'?'\u266D':'\u266E'}
+    lastAcc[diaStep]=thisAcc;
+    if(show){x.fillStyle=col;x.globalAlpha=.65*fA;x.font=(ls*1.1)+'px serif';x.textAlign='right';
+      x.fillText(show,px-nhB-2,y+ls*.35)}}
+
+  tlGrid(t,2,h-8);
+  x.globalAlpha=.4;x.fillStyle='#555';x.font='7px IBM Plex Mono';x.textAlign='left';x.fillText('STAFF',KW,h-3);
+  x.setTransform(1,0,0,1,0,0);
+}
+
+// ═══ ENVELOPE STRIP ═══
+function drawEnvelope(){
+  var t=tlSetup('attackStrip',36);if(!t)return;
+  var x=t.x,h=t.h;if(H.length<2){x.setTransform(1,0,0,1,0,0);return}
+  var sh=h/10;
+  for(var si=0;si<10;si++){
+    var lY=si*sh,lH=sh-1,col=SC[si];
+    x.beginPath();var started=false;
+    for(var hi=0;hi<H.length;hi++){
+      var fr=H[hi],age=t.nU-fr.timestamp_us;if(age>t.wU||age<0)continue;
+      var px=tlX(age,t.hw,t.cX,t.wU),amp=fr.string_amp?fr.string_amp[si]:0;
+      var ey=lY+lH*(1-amp);
+      if(!started){x.moveTo(px,lY+lH);x.lineTo(px,ey);started=true}else x.lineTo(px,ey)}
+    if(started){x.lineTo(t.cX,lY+lH);x.closePath();x.fillStyle=col;x.globalAlpha=.25;x.fill()}
+    for(var hi=0;hi<H.length;hi++){
+      var fr=H[hi],age=t.nU-fr.timestamp_us;if(age>t.wU||age<0)continue;
+      if(fr.attacks&&fr.attacks[si]){var px=tlX(age,t.hw,t.cX,t.wU);
+        x.strokeStyle=col;x.globalAlpha=.8;x.lineWidth=1.5;
+        x.beginPath();x.moveTo(px,lY);x.lineTo(px,lY+lH);x.stroke()}}}
+  for(var i=0;i<10;i++){if(atkFlash[i]>0){x.fillStyle=SC[i];x.globalAlpha=atkFlash[i]*1.5;
+    x.fillRect(t.cX-2,i*sh,5,sh-1)}}
+  x.globalAlpha=.3;x.strokeStyle='#1abc9c';x.lineWidth=1;x.beginPath();x.moveTo(t.cX,0);x.lineTo(t.cX,h);x.stroke();
+  x.globalAlpha=.4;x.fillStyle='#555';x.font='7px IBM Plex Mono';x.textAlign='left';x.fillText('ENV',KW,h-2);
+  x.setTransform(1,0,0,1,0,0);
+}
+
+// ═══ TABLATURE (integer frets) ═══
+function drawTab(){
+  var t=tlSetup('tablature',140);if(!t)return;
+  var x=t.x,h=t.h;
+  var nS=10,tM=6,bM=12,sH=(h-tM-bM)/nS;
+  for(var i=0;i<nS;i++){var y=tM+i*sH+sH/2;
+    x.strokeStyle='#141425';x.lineWidth=.7;x.beginPath();x.moveTo(KW,y);x.lineTo(t.w-6,y);x.stroke();
+    x.fillStyle='#333';x.font='7px IBM Plex Mono';x.textAlign='right';x.fillText(String(i+1),KW-4,y+2.5);
+    x.fillStyle=SC[i];x.globalAlpha=.35;x.beginPath();x.arc(KW-12,y,2,0,Math.PI*2);x.fill();x.globalAlpha=1}
+  if(H.length<2){tlGrid(t,tM,h-bM);x.setTransform(1,0,0,1,0,0);return}
+  for(var si=0;si<nS;si++){var col=SC[si],sY=tM+si*sH+sH/2;
+    for(var hi=0;hi<H.length;hi++){var fr=H[hi],age=t.nU-fr.timestamp_us;if(age>t.wU||age<0)continue;
+      if(!(fr.attacks&&fr.attacks[si]))continue;
+      var fret=fr.bar_position;if(fret===null)continue;
+      var px=tlX(age,t.hw,t.cX,t.wU),fA=1-.15*(age/t.wU),vA=.3+.7*fr.volume;
+      x.fillStyle=col;x.globalAlpha=vA*fA*.9;x.font='bold '+(sH*.6)+'px IBM Plex Mono';x.textAlign='center';
+      x.fillText(String(Math.round(fret)),px,sY+sH*.18);
+      var ann='';
+      if(fr.pedals)for(var p=0;p<3;p++)if(fr.pedals[p]>.5)ann+=['A','B','C'][p];
+      if(fr.knee_levers)for(var k=0;k<5;k++)if((fr.knee_levers[k]||0)>.5)ann+=(ann?'+':'')+LNM[k];
+      if(ann){x.fillStyle=col;x.globalAlpha=vA*fA*.5;x.font=(sH*.35)+'px IBM Plex Mono';x.fillText(ann,px,sY+sH*.52)}}}
+  tlGrid(t,tM,h-bM);
+  x.globalAlpha=.4;x.fillStyle='#555';x.font='7px IBM Plex Mono';x.textAlign='left';x.fillText('TAB',KW,h-2);
+  x.setTransform(1,0,0,1,0,0);
+}
+
+// ═══ PIANO ROLL (continuous lines) ═══
+function drawRoll(){
+  var c=document.getElementById('pianoRoll');if(!c)return;
+  var w=c.clientWidth,h=c.clientHeight;if(h<10)return;
+  if(c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2}
+  var x=c.getContext('2d');x.setTransform(2,0,0,2,0,0);x.clearRect(0,0,w,h);
+  var mR=MH-ML;x.fillStyle='#06060e';x.fillRect(0,0,w,h);x.fillStyle='#0a0a14';x.fillRect(0,0,KW,h);
+  var cX=w-12,hw=cX-KW,wU=RS*1e6;
+  for(var m=ML;m<=MH;m++){var y=h-((m-ML)/mR)*h,nn=NN[m%12];
+    if(nn==='C'||nn==='E'){x.strokeStyle='#0f0f1a';x.lineWidth=.5;x.beginPath();x.moveTo(KW,y);x.lineTo(w,y);x.stroke()}
+    if(nn==='C'){x.fillStyle='#1a1a2a';x.font='7px IBM Plex Mono';x.textAlign='right';x.fillText('C'+(Math.floor(m/12)-1),KW-3,y+3)}}
+  if(H.length<2){x.setTransform(1,0,0,1,0,0);return}
+  var nU=H[H.length-1].timestamp_us;
+  for(var si=0;si<10;si++){
+    var col=SC[si],pPx=null,pPy=null,pAmp=0;
+    for(var hi=0;hi<H.length;hi++){
+      var f=H[hi],age=nU-f.timestamp_us;if(age>wU||age<0){pPx=null;continue}
+      var amp=f.string_amp?f.string_amp[si]:0;
+      if(amp<AMP_FLOOR){pPx=null;pAmp=0;continue}
+      var hz=f.string_pitches_hz[si];if(hz<20){pPx=null;continue}
+      var mi=h2m(hz);if(mi<ML||mi>MH){pPx=null;continue}
+      var px=KW+hw*(1-age/wU),py=h-((mi-ML)/mR)*h;
+      var fA=1-.15*(age/wU),lw=1+amp*2.5,alpha=Math.min(1,amp*fA*.9);
+      if(pPx!==null&&pAmp>AMP_FLOOR){
+        x.strokeStyle=col;x.globalAlpha=alpha;x.lineWidth=lw;
+        x.beginPath();x.moveTo(pPx,pPy);x.lineTo(px,py);x.stroke()}
+      if(f.attacks&&f.attacks[si]){x.fillStyle=col;x.globalAlpha=Math.min(1,alpha+.3);
+        x.beginPath();x.arc(px,py,3,0,Math.PI*2);x.fill()}
+      pPx=px;pPy=py;pAmp=amp}}
+  // Playhead
+  x.globalAlpha=1;x.strokeStyle=S&&S.bar_position!==null&&S.volume>.02?'rgba(26,188,156,.2)':'rgba(80,80,100,.06)';
+  x.lineWidth=1;x.beginPath();x.moveTo(cX,0);x.lineTo(cX,h);x.stroke();
+  x.globalAlpha=.4;x.fillStyle='#555';x.font='7px IBM Plex Mono';x.textAlign='left';x.fillText('ROLL',KW,h-2);
+  x.setTransform(1,0,0,1,0,0);
+}
+
+// ═══ MAIN LOOP ═══
+var prevTime=performance.now();
+function mainLoop(now){
+  var dt=(now-prevTime)/1000;prevTime=now;if(dt>.1)dt=.016;
+  for(var i=0;i<10;i++)if(atkFlash[i]>0)atkFlash[i]=Math.max(0,atkFlash[i]-dt);
+  if(dm){
+    if(actx&&soundOn){simTime=actx.currentTime-audioStartT;var raw=simGen(0);pushFrame(coordProcess(raw,dt))}
+    else{var raw=simGen(dt);pushFrame(coordProcess(raw,dt))}}
+  updateAudio();fc++;ft+=dt;
+  if(ft>=.5){df=Math.round(fc/ft);fc=0;ft=0;document.getElementById('fps').textContent=df+'fps'}
+  drawInstrument();drawStaff();drawEnvelope();drawTab();drawRoll();
+  requestAnimationFrame(mainLoop);
+}
+
+// Boot
+S={timestamp_us:0,pedals:[0,0,0],knee_levers:[0,0,0,0,0],volume:0,bar_position:null,
+  bar_confidence:0,bar_source:'None',bar_sensors:[0,0,0,0],string_pitches_hz:cpd(null,[0,0,0],[0,0,0,0,0]),
+  string_active:new Array(10).fill(false),attacks:new Array(10).fill(false),string_amp:new Array(10).fill(0)};
+requestAnimationFrame(mainLoop);
+
+</script>
+</body>
+</html>

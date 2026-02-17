@@ -1,0 +1,38 @@
+[package]
+name = "steel-capture"
+version = "0.1.0"
+edition = "2021"
+description = "Pedal steel guitar expression capture system"
+
+[lib]
+name = "steel_capture"
+path = "src/lib.rs"
+
+[[bin]]
+name = "steel-capture"
+path = "src/main.rs"
+
+[dependencies]
+crossbeam-channel = "0.5"
+rosc = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+log = "0.4"
+env_logger = "0.11"
+byteorder = "1.5"
+hound = "3.5"
+sha1_smol = "1.0"
+
+# GUI (native window via egui/eframe)
+eframe = { version = "0.29", optional = true, default-features = false, features = ["default_fonts", "glow"] }
+
+# Hardware dependencies — optional for simulator-only builds
+serialport = { version = "4.3", optional = true }
+cpal = { version = "0.15", optional = true }
+
+[features]
+default = ["gui"]
+gui = ["eframe"]
+hardware = ["serialport"]
+audio = ["cpal"]

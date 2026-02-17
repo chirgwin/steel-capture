@@ -1,0 +1,786 @@
+{
+  "format": "steel-capture-sensor-v1",
+  "description": "Demo simulation: 35s cycle exercising all pedals (A,B,C), all levers (LKL,LKR,LKV,RKL,RKR), volume, bar slides, and string picks.",
+  "sample_rate_hz": 60,
+  "duration_s": 35,
+  "sensor_positions_fret": [
+    0,
+    5,
+    10,
+    15
+  ],
+  "scale_length_inches": 24.5,
+  "copedant": "E9",
+  "open_midi": [
+    66,
+    63,
+    68,
+    64,
+    59,
+    56,
+    54,
+    52,
+    50,
+    47
+  ],
+  "string_names": [
+    "1:F#4",
+    "2:D#4",
+    "3:G#4",
+    "4:E4",
+    "5:B3",
+    "6:G#3",
+    "7:F#3",
+    "8:E3",
+    "9:D3",
+    "10:B2"
+  ],
+  "pedal_changes": [
+    {
+      "pedal": "A",
+      "strings": [
+        "5:+2st",
+        "10:+2st"
+      ]
+    },
+    {
+      "pedal": "B",
+      "strings": [
+        "3:+1st",
+        "6:+1st"
+      ]
+    },
+    {
+      "pedal": "C",
+      "strings": [
+        "4:+2st",
+        "5:+2st"
+      ]
+    }
+  ],
+  "lever_changes": [
+    {
+      "lever": "LKL",
+      "strings": [
+        "4:-1st",
+        "8:-1st"
+      ]
+    },
+    {
+      "lever": "LKR",
+      "strings": [
+        "4:+1st",
+        "8:+1st"
+      ]
+    },
+    {
+      "lever": "LKV",
+      "strings": [
+        "(none on E9)"
+      ]
+    },
+    {
+      "lever": "RKL",
+      "strings": [
+        "1:+1st"
+      ]
+    },
+    {
+      "lever": "RKR",
+      "strings": [
+        "2:+2st"
+      ]
+    }
+  ],
+  "packet_schema": {
+    "t_us": "timestamp in microseconds from start",
+    "sens": "hall-effect sensor readings [f0, f5, f10, f15], range 0.000–1.000",
+    "ped": "pedal engagement [A, B, C], range 0.000–1.000 (>0.5 = engaged)",
+    "lev": "lever engagement [LKL, LKR, LKV, RKL, RKR], range 0.000–1.000 (>0.5 = engaged)",
+    "vol": "volume pedal position, range 0.000–1.000",
+    "picks": "per-string activation [str1..str10], boolean (from hex pickup RMS threshold)"
+  },
+  "packets": [
+    {
+      "t_us": 16666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 33333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 50000,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 66666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 83333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 99999,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 116666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 133333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 150000,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 166666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 183333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 199999,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 216666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 233333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 249999,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 266666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 283333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 300000,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 316666,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "t_us": 333333,
+      "sens": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ped": [
+        0,
+        0,
+        0
+      ],
+      "lev": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "vol": 0,
+      "picks": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  ],
+  "_note": "Sample: first 20 of 2100 packets. Full file: demo_sensor_data.json"
+}

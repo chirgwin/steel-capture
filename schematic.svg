@@ -1,0 +1,299 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 2050" font-family="'Courier New', monospace">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#c0392b"/></marker>
+    <marker id="arr-g" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#27ae60"/></marker>
+    <marker id="arr-b" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2980b9"/></marker>
+    <marker id="arr-o" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#e67e22"/></marker>
+    <marker id="arr-p" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#9b59b6"/></marker>
+    <marker id="arr-y" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#f1c40f"/></marker>
+    <marker id="arr-t" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1abc9c"/></marker>
+    <marker id="arr-bl" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#3498db"/></marker>
+    <filter id="sh"><feDropShadow dx="1" dy="1" stdDeviation="2" flood-opacity="0.25"/></filter>
+  </defs>
+  <rect width="1400" height="2050" fill="#090910"/>
+  <text x="700" y="42" text-anchor="middle" fill="#ecf0f1" font-size="24" font-weight="bold" letter-spacing="3">PEDAL STEEL EXPRESSION CAPTURE SYSTEM</text>
+  <text x="700" y="65" text-anchor="middle" fill="#7f8c8d" font-size="13" letter-spacing="2">Derby SD-10 · Buddy Emmons E9 · 3P/5KL · v0.4 — Hall Array + Audio Fusion + Live Viz</text>
+  <line x1="150" y1="78" x2="1250" y2="78" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="108" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold" letter-spacing="2">TIERED APPROACH — SOFTWARE COMPLEXITY OVER HARDWARE</text>
+  <rect x="150" y="120" width="360" height="72" rx="6" fill="#0a1a0a" stroke="#27ae60" stroke-width="2"/>
+  <text x="165" y="142" fill="#27ae60" font-size="12" font-weight="bold">TIER 1 (core) — ZERO fretboard mods</text>
+  <text x="165" y="157" fill="#7dcea0" font-size="9">Hall sensors on pedals/levers/volume (9 ch)</text>
+  <text x="165" y="169" fill="#7dcea0" font-size="9">Audio → spectral template match → bar pos</text>
+  <text x="165" y="181" fill="#7dcea0" font-size="9">Bar known whenever strings are sounding</text>
+  <text x="490" y="188" fill="#27ae60" font-size="8" font-weight="bold">✓ BUILT</text>
+  <rect x="520" y="120" width="360" height="72" rx="6" fill="#0a1a0a" stroke="#1abc9c" stroke-width="2"/>
+  <text x="535" y="142" fill="#1abc9c" font-size="12" font-weight="bold">TIER 2 (active) — magnet on bar</text>
+  <text x="535" y="157" fill="#76d7c4" font-size="9">6mm neo on bar tip + 4× SS49E on rail</text>
+  <text x="535" y="169" fill="#76d7c4" font-size="9">Sensors at frets 0, 5, 10, 15 · interpolated</text>
+  <text x="535" y="181" fill="#76d7c4" font-size="9">Continuous bar position even in silence</text>
+  <text x="860" y="188" fill="#1abc9c" font-size="8" font-weight="bold">✓ BUILT</text>
+  <rect x="890" y="120" width="360" height="72" rx="6" fill="#1a0a1a" stroke="#8e44ad" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="905" y="142" fill="#8e44ad" font-size="12" font-weight="bold">TIER 3 (future) — overhead camera</text>
+  <text x="905" y="157" fill="#c39bd3" font-size="9">USB webcam on mic stand</text>
+  <text x="905" y="169" fill="#c39bd3" font-size="9">Bar slant, right-hand tracking</text>
+  <text x="905" y="181" fill="#c39bd3" font-size="9">Visual validation / ground truth</text>
+  <line x1="150" y1="210" x2="1250" y2="210" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="236" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold" letter-spacing="2">▸ PHYSICAL INSTRUMENT</text>
+  <rect x="150" y="250" width="1100" height="160" rx="6" fill="#141420" stroke="#2c3e50" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="165" y="270" fill="#5d6d7e" font-size="10">DERBY SD-10 — TOP VIEW</text>
+  <rect x="175" y="285" width="680" height="70" rx="2" fill="#0e1525" stroke="#1a2535" stroke-width="1"/>
+  <text x="180" y="300" fill="#3d5066" font-size="8">NUT</text>
+  <g stroke="#283848" stroke-width="0.7" opacity="0.5">
+    <line x1="240" y1="285" x2="240" y2="355"/><line x1="305" y1="285" x2="305" y2="355"/>
+    <line x1="362" y1="285" x2="362" y2="355"/><line x1="413" y1="285" x2="413" y2="355"/>
+    <line x1="458" y1="285" x2="458" y2="355"/><line x1="499" y1="285" x2="499" y2="355"/>
+    <line x1="536" y1="285" x2="536" y2="355"/><line x1="569" y1="285" x2="569" y2="355"/>
+    <line x1="599" y1="285" x2="599" y2="355"/><line x1="626" y1="285" x2="626" y2="355"/>
+    <line x1="650" y1="285" x2="650" y2="355"/><line x1="672" y1="285" x2="672" y2="355"/>
+    <line x1="692" y1="285" x2="692" y2="355"/><line x1="710" y1="285" x2="710" y2="355"/>
+    <line x1="726" y1="285" x2="726" y2="355"/><line x1="741" y1="285" x2="741" y2="355"/>
+  </g>
+  <g stroke="#556" stroke-width="0.4">
+    <line x1="178" y1="292" x2="845" y2="292"/><line x1="178" y1="299" x2="845" y2="299"/>
+    <line x1="178" y1="306" x2="845" y2="306"/><line x1="178" y1="313" x2="845" y2="313"/>
+    <line x1="178" y1="320" x2="845" y2="320"/><line x1="178" y1="327" x2="845" y2="327"/>
+    <line x1="178" y1="334" x2="845" y2="334"/><line x1="178" y1="341" x2="845" y2="341"/>
+    <line x1="178" y1="348" x2="845" y2="348"/><line x1="178" y1="355" x2="845" y2="355"/>
+  </g>
+  <rect x="408" y="280" width="5" height="82" rx="2" fill="#c8c8c8" stroke="#eee" stroke-width="0.5" opacity="0.85"/>
+  <text x="416" y="278" fill="#e74c3c" font-size="8" font-weight="bold">BAR (~7mm above)</text>
+  <rect x="406" y="275" width="10" height="8" rx="2" fill="#e74c3c" stroke="#ff6b6b" stroke-width="0.5"/>
+  <text x="420" y="272" fill="#1abc9c" font-size="7" font-weight="bold">T2: magnet</text>
+  <g>
+    <line x1="175" y1="278" x2="730" y2="278" stroke="#1abc9c" stroke-width="1" opacity="0.4"/>
+    <text x="735" y="279" fill="#1abc9c" font-size="6" opacity="0.7">treble rail</text>
+    <circle cx="178" cy="278" r="5" fill="#1abc9c" stroke="#2ecc71" stroke-width="0.5"/>
+    <text x="168" y="265" fill="#76d7c4" font-size="5">S0 f0</text>
+    <circle cx="458" cy="278" r="5" fill="#1abc9c" stroke="#2ecc71" stroke-width="0.5"/>
+    <text x="448" y="265" fill="#76d7c4" font-size="5">S1 f5</text>
+    <circle cx="626" cy="278" r="5" fill="#1abc9c" stroke="#2ecc71" stroke-width="0.5"/>
+    <text x="614" y="265" fill="#76d7c4" font-size="5">S2 f10</text>
+    <circle cx="726" cy="278" r="5" fill="#1abc9c" stroke="#2ecc71" stroke-width="0.5"/>
+    <text x="714" y="265" fill="#76d7c4" font-size="5">S3 f15</text>
+    <text x="350" y="258" fill="#1abc9c" font-size="7" font-weight="bold">T2: 4× SS49E hall sensors on treble rail → interpolated bar position</text>
+  </g>
+  <text x="500" y="380" fill="#27ae60" font-size="9" font-weight="bold">▲ FRETBOARD UNTOUCHED — zero instrument modification</text>
+  <rect x="870" y="295" width="55" height="50" rx="2" fill="#111" stroke="#444" stroke-width="1"/>
+  <text x="897" y="315" text-anchor="middle" fill="#666" font-size="7">GEORGE L</text>
+  <text x="897" y="325" text-anchor="middle" fill="#666" font-size="7">PICKUP</text>
+  <rect x="850" y="285" width="12" height="70" rx="1" fill="#1a2530" stroke="#334"/>
+  <rect x="170" y="288" width="10" height="64" rx="1" fill="#1a2530" stroke="#334"/>
+  <line x1="925" y1="320" x2="1000" y2="320" stroke="#f39c12" stroke-width="2"/>
+  <rect x="1000" y="305" width="120" height="30" rx="4" fill="#1a1a0a" stroke="#f39c12" stroke-width="1.5"/>
+  <text x="1060" y="324" text-anchor="middle" fill="#f39c12" font-size="9" font-weight="bold">1/4" → AUDIO IF</text>
+  <line x1="150" y1="400" x2="1250" y2="400" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="425" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold" letter-spacing="2">▸ SENSORS (all removable, all off-the-shelf)</text>
+  <rect x="150" y="440" width="400" height="130" rx="6" fill="#141420" stroke="#2c3e50" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="165" y="460" fill="#95a5a6" font-size="10">FOOT PEDALS (3)</text>
+  <rect x="170" y="475" width="350" height="5" rx="1" fill="#333" stroke="#444"/>
+  <g><rect x="190" y="485" width="70" height="40" rx="3" fill="#1a1a1a" stroke="#e67e22" stroke-width="1.5"/>
+    <text x="225" y="505" text-anchor="middle" fill="#e67e22" font-size="13" font-weight="bold">A</text>
+    <text x="225" y="518" text-anchor="middle" fill="#e67e22" font-size="7">B→C#</text>
+    <circle cx="266" cy="492" r="4" fill="#27ae60"/><circle cx="200" cy="520" r="3" fill="#e74c3c"/></g>
+  <g><rect x="290" y="485" width="70" height="40" rx="3" fill="#1a1a1a" stroke="#e67e22" stroke-width="1.5"/>
+    <text x="325" y="505" text-anchor="middle" fill="#e67e22" font-size="13" font-weight="bold">B</text>
+    <text x="325" y="518" text-anchor="middle" fill="#e67e22" font-size="7">G#→A</text>
+    <circle cx="366" cy="492" r="4" fill="#27ae60"/><circle cx="300" cy="520" r="3" fill="#e74c3c"/></g>
+  <g><rect x="390" y="485" width="70" height="40" rx="3" fill="#1a1a1a" stroke="#e67e22" stroke-width="1.5"/>
+    <text x="425" y="505" text-anchor="middle" fill="#e67e22" font-size="13" font-weight="bold">C</text>
+    <text x="425" y="518" text-anchor="middle" fill="#e67e22" font-size="7">E→F# B→C#</text>
+    <circle cx="466" cy="492" r="4" fill="#27ae60"/><circle cx="400" cy="520" r="3" fill="#e74c3c"/></g>
+  <text x="170" y="548" fill="#27ae60" font-size="8">● SS49E hall (~$1.50)</text>
+  <text x="340" y="548" fill="#e74c3c" font-size="8">● 6×3mm neo magnet (~$0.50)</text>
+  <rect x="570" y="440" width="340" height="130" rx="6" fill="#141420" stroke="#2c3e50" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="585" y="460" fill="#95a5a6" font-size="10">KNEE LEVERS (5)</text>
+  <g><rect x="585" y="475" width="52" height="32" rx="3" fill="#1a1a1a" stroke="#2980b9" stroke-width="1.5"/>
+    <text x="611" y="495" text-anchor="middle" fill="#2980b9" font-size="9" font-weight="bold">LKL</text>
+    <circle cx="611" cy="512" r="4" fill="#27ae60"/><circle cx="611" cy="471" r="3" fill="#e74c3c"/></g>
+  <g><rect x="645" y="475" width="52" height="32" rx="3" fill="#1a1a1a" stroke="#2980b9" stroke-width="1.5"/>
+    <text x="671" y="495" text-anchor="middle" fill="#2980b9" font-size="9" font-weight="bold">LKR</text>
+    <circle cx="671" cy="512" r="4" fill="#27ae60"/><circle cx="671" cy="471" r="3" fill="#e74c3c"/></g>
+  <g><rect x="705" y="475" width="52" height="32" rx="3" fill="#1a1a1a" stroke="#2980b9" stroke-width="1.5"/>
+    <text x="731" y="495" text-anchor="middle" fill="#2980b9" font-size="9" font-weight="bold">LKV</text>
+    <circle cx="731" cy="512" r="4" fill="#27ae60"/><circle cx="731" cy="471" r="3" fill="#e74c3c"/></g>
+  <g><rect x="765" y="475" width="52" height="32" rx="3" fill="#1a1a1a" stroke="#2980b9" stroke-width="1.5"/>
+    <text x="791" y="495" text-anchor="middle" fill="#2980b9" font-size="9" font-weight="bold">RKL</text>
+    <circle cx="791" cy="512" r="4" fill="#27ae60"/><circle cx="791" cy="471" r="3" fill="#e74c3c"/></g>
+  <g><rect x="825" y="475" width="52" height="32" rx="3" fill="#1a1a1a" stroke="#2980b9" stroke-width="1.5"/>
+    <text x="851" y="495" text-anchor="middle" fill="#2980b9" font-size="9" font-weight="bold">RKR</text>
+    <circle cx="851" cy="512" r="4" fill="#27ae60"/><circle cx="851" cy="471" r="3" fill="#e74c3c"/></g>
+  <text x="585" y="540" fill="#7f8c8d" font-size="8">Hall+magnet pairs on lever arms, clamp brackets</text>
+  <rect x="930" y="440" width="320" height="130" rx="6" fill="#141420" stroke="#2c3e50" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="945" y="460" fill="#95a5a6" font-size="10">VOLUME PEDAL</text>
+  <polygon points="960,490 1100,490 1090,475 970,475" fill="#1a1a1a" stroke="#9b59b6" stroke-width="1.5"/>
+  <text x="1030" y="487" text-anchor="middle" fill="#9b59b6" font-size="9">ROCKER</text>
+  <circle cx="1110" cy="482" r="4" fill="#27ae60"/><circle cx="1070" cy="492" r="3" fill="#e74c3c"/>
+  <text x="945" y="518" fill="#9b59b6" font-size="8">Option A: hall+magnet</text>
+  <text x="945" y="530" fill="#9b59b6" font-size="8">Option B: ADXL335 tilt</text>
+  <text x="945" y="542" fill="#666" font-size="8">Option C: pot wiper / audio amp</text>
+  <rect x="400" y="588" width="500" height="50" rx="6" fill="#0a180a" stroke="#27ae60" stroke-width="2" filter="url(#sh)"/>
+  <text x="650" y="608" text-anchor="middle" fill="#27ae60" font-size="12" font-weight="bold">TEENSY 4.1 — 13 analog inputs · 1kHz · USB serial</text>
+  <text x="650" y="625" text-anchor="middle" fill="#7dcea0" font-size="8">A0-A2: pedals · A3-A7: levers · A8: volume · A9-A12: bar hall sensors</text>
+  <line x1="350" y1="570" x2="550" y2="588" stroke="#27ae60" stroke-width="1" marker-end="url(#arr-g)"/>
+  <line x1="740" y1="540" x2="700" y2="588" stroke="#27ae60" stroke-width="1" marker-end="url(#arr-g)"/>
+  <line x1="1060" y1="530" x2="850" y2="588" stroke="#27ae60" stroke-width="1" marker-end="url(#arr-g)"/>
+  <line x1="450" y1="283" x2="580" y2="588" stroke="#1abc9c" stroke-width="1" marker-end="url(#arr-t)" stroke-dasharray="3,2"/>
+  <text x="485" y="440" fill="#1abc9c" font-size="7" transform="rotate(-60,485,440)">4× bar sensors (A9-A12)</text>
+  <line x1="150" y1="660" x2="1250" y2="660" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="685" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold" letter-spacing="2">▸ SIGNAL TRANSPORT — 2 USB cables to host</text>
+  <rect x="250" y="700" width="350" height="50" rx="5" fill="#0a180a" stroke="#27ae60" stroke-width="1.5"/>
+  <text x="425" y="720" text-anchor="middle" fill="#27ae60" font-size="11" font-weight="bold">USB SERIAL (Teensy → host)</text>
+  <text x="425" y="738" text-anchor="middle" fill="#7dcea0" font-size="8">13 ch · binary · CRC16 · ~52 KB/s @ 1kHz</text>
+  <rect x="700" y="700" width="350" height="50" rx="5" fill="#1a1a0a" stroke="#f39c12" stroke-width="1.5"/>
+  <text x="875" y="720" text-anchor="middle" fill="#f39c12" font-size="11" font-weight="bold">USB AUDIO (interface → host)</text>
+  <text x="875" y="738" text-anchor="middle" fill="#f0d080" font-size="8">24-bit/96kHz mono · George L pickup · ~288 KB/s</text>
+  <line x1="650" y1="638" x2="425" y2="700" stroke="#27ae60" stroke-width="1.5" marker-end="url(#arr-g)"/>
+  <line x1="1060" y1="335" x2="1150" y2="335" stroke="#f39c12" stroke-width="1"/>
+  <line x1="1150" y1="335" x2="1150" y2="705" stroke="#f39c12" stroke-width="1"/>
+  <line x1="1150" y1="705" x2="1050" y2="705" stroke="#f39c12" stroke-width="1.5" marker-end="url(#arr-o)"/>
+  <line x1="150" y1="770" x2="1250" y2="770" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="796" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold" letter-spacing="2">▸ SOFTWARE PIPELINE — steel-capture (Rust)</text>
+  <rect x="150" y="810" width="1100" height="530" rx="8" fill="#0a0a12" stroke="#333" stroke-width="1"/>
+  <text x="170" y="835" fill="#666" font-size="10" font-weight="bold">INPUT THREADS</text>
+  <rect x="170" y="845" width="250" height="85" rx="5" fill="#071507" stroke="#27ae60" stroke-width="1.5"/>
+  <text x="295" y="865" text-anchor="middle" fill="#27ae60" font-size="11" font-weight="bold">serial_reader</text>
+  <line x1="180" y1="872" x2="410" y2="872" stroke="#27ae60" stroke-width="0.3" opacity="0.3"/>
+  <text x="180" y="886" fill="#5a9a5a" font-size="8">• binary frames, CRC16, 13 ch</text>
+  <text x="180" y="898" fill="#5a9a5a" font-size="8">• calibrate ADC → physical units</text>
+  <text x="180" y="910" fill="#5a9a5a" font-size="8">• → SensorFrame (incl bar_sensors[4])</text>
+  <rect x="440" y="845" width="250" height="85" rx="5" fill="#170f07" stroke="#f39c12" stroke-width="1.5"/>
+  <text x="565" y="865" text-anchor="middle" fill="#f39c12" font-size="11" font-weight="bold">audio_capture</text>
+  <line x1="450" y1="872" x2="680" y2="872" stroke="#f39c12" stroke-width="0.3" opacity="0.3"/>
+  <text x="450" y="886" fill="#a08050" font-size="8">• 96kHz ring buffer via cpal</text>
+  <text x="450" y="898" fill="#a08050" font-size="8">• ~10ms chunks, timestamped</text>
+  <text x="450" y="910" fill="#a08050" font-size="8">• → AudioChunk</text>
+  <rect x="710" y="845" width="250" height="85" rx="5" fill="#071507" stroke="#2ecc71" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="835" y="865" text-anchor="middle" fill="#2ecc71" font-size="11" font-weight="bold">simulator</text>
+  <line x1="720" y1="872" x2="950" y2="872" stroke="#2ecc71" stroke-width="0.3" opacity="0.3"/>
+  <text x="720" y="886" fill="#60a060" font-size="8">• gesture sequences + synthetic audio</text>
+  <text x="720" y="898" fill="#60a060" font-size="8">• hall sensor readings from mag model</text>
+  <text x="720" y="910" fill="#60a060" font-size="8">• → SensorFrame + AudioChunk</text>
+  <text x="170" y="960" fill="#666" font-size="10" font-weight="bold">PROCESSING</text>
+  <rect x="170" y="972" width="270" height="100" rx="5" fill="#0d0d18" stroke="#ecf0f1" stroke-width="1.5"/>
+  <text x="305" y="992" text-anchor="middle" fill="#ecf0f1" font-size="12" font-weight="bold">coordinator</text>
+  <line x1="180" y1="999" x2="430" y2="999" stroke="#ecf0f1" stroke-width="0.3" opacity="0.3"/>
+  <text x="180" y="1014" fill="#aaa" font-size="8">• SensorFrame + AudioChunk in</text>
+  <text x="180" y="1027" fill="#aaa" font-size="8">• feeds bar_inference + copedant</text>
+  <text x="180" y="1040" fill="#aaa" font-size="8">• produces CaptureFrame</text>
+  <text x="180" y="1053" fill="#aaa" font-size="8">• fans out: log, OSC, viz, console</text>
+  <rect x="460" y="972" width="220" height="100" rx="5" fill="#120818" stroke="#9b59b6" stroke-width="1.5"/>
+  <text x="570" y="992" text-anchor="middle" fill="#9b59b6" font-size="12" font-weight="bold">copedant_engine</text>
+  <line x1="470" y1="999" x2="670" y2="999" stroke="#9b59b6" stroke-width="0.3" opacity="0.3"/>
+  <text x="470" y="1014" fill="#8a6aaa" font-size="8">• Buddy Emmons E9</text>
+  <text x="470" y="1027" fill="#8a6aaa" font-size="8">• pedal state → open pitches</text>
+  <text x="470" y="1040" fill="#8a6aaa" font-size="8">• bar_pos → 10× string Hz</text>
+  <text x="470" y="1053" fill="#8a6aaa" font-size="8">• partial pedal = prop. bend</text>
+  <rect x="700" y="972" width="530" height="100" rx="5" fill="#0a1510" stroke="#1abc9c" stroke-width="2"/>
+  <text x="965" y="992" text-anchor="middle" fill="#1abc9c" font-size="12" font-weight="bold">bar_inference — SENSOR FUSION</text>
+  <line x1="710" y1="999" x2="1220" y2="999" stroke="#1abc9c" stroke-width="0.3" opacity="0.3"/>
+  <rect x="715" y="1006" width="165" height="55" rx="3" fill="#0a1a0a" stroke="#27ae60" stroke-width="1"/>
+  <text x="797" y="1020" text-anchor="middle" fill="#27ae60" font-size="8" font-weight="bold">bar_sensor (PRIMARY)</text>
+  <text x="722" y="1033" fill="#5a9a5a" font-size="7">4× SS49E → peak interpolation</text>
+  <text x="722" y="1044" fill="#5a9a5a" font-size="7">Works in silence · ±0.3 fret</text>
+  <text x="722" y="1055" fill="#5a9a5a" font-size="7">1kHz update · $6.50 total</text>
+  <rect x="895" y="1006" width="165" height="55" rx="3" fill="#18120a" stroke="#f1c40f" stroke-width="1"/>
+  <text x="977" y="1020" text-anchor="middle" fill="#f1c40f" font-size="8" font-weight="bold">audio_infer (REFINE)</text>
+  <text x="902" y="1033" fill="#b0a040" font-size="7">Goertzel 10-string template</text>
+  <text x="902" y="1044" fill="#b0a040" font-size="7">±0.1 fret when strings sound</text>
+  <text x="902" y="1055" fill="#b0a040" font-size="7">~42ms analysis interval</text>
+  <rect x="1075" y="1006" width="145" height="55" rx="3" fill="#0a1210" stroke="#1abc9c" stroke-width="1"/>
+  <text x="1147" y="1020" text-anchor="middle" fill="#1abc9c" font-size="8" font-weight="bold">→ FUSED OUTPUT</text>
+  <text x="1082" y="1033" fill="#76d7c4" font-size="7">60% audio / 40% sensor</text>
+  <text x="1082" y="1044" fill="#76d7c4" font-size="7">disagree &gt;2f → trust sensor</text>
+  <text x="1082" y="1055" fill="#76d7c4" font-size="7">BarSource: Sen|Aud|Fused</text>
+  <line x1="295" y1="930" x2="295" y2="972" stroke="#27ae60" stroke-width="1.5" marker-end="url(#arr-g)"/>
+  <line x1="565" y1="930" x2="400" y2="972" stroke="#f39c12" stroke-width="1.5" marker-end="url(#arr-o)"/>
+  <line x1="835" y1="930" x2="420" y2="972" stroke="#2ecc71" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr-g)"/>
+  <line x1="440" y1="1020" x2="460" y2="1020" stroke="#9b59b6" stroke-width="1.5" marker-end="url(#arr-p)"/>
+  <line x1="680" y1="1020" x2="700" y2="1020" stroke="#1abc9c" stroke-width="1.5" marker-end="url(#arr-t)"/>
+  <path d="M 565,930 Q 700,950 965,972" fill="none" stroke="#f39c12" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#arr-o)"/>
+  <line x1="630" y1="1040" x2="700" y2="1040" stroke="#9b59b6" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#arr-p)"/>
+  <text x="170" y="1100" fill="#666" font-size="10" font-weight="bold">OUTPUT</text>
+  <rect x="170" y="1112" width="220" height="70" rx="5" fill="#070d17" stroke="#2980b9" stroke-width="1.5"/>
+  <text x="280" y="1132" text-anchor="middle" fill="#2980b9" font-size="10" font-weight="bold">data_logger</text>
+  <text x="180" y="1150" fill="#6090b0" font-size="7">frames.jsonl + audio_raw.bin</text>
+  <text x="180" y="1162" fill="#6090b0" font-size="7">manifest.json (copedant)</text>
+  <text x="180" y="1174" fill="#6090b0" font-size="7">replayable sessions</text>
+  <rect x="410" y="1112" width="220" height="70" rx="5" fill="#170d07" stroke="#e67e22" stroke-width="1.5"/>
+  <text x="520" y="1132" text-anchor="middle" fill="#e67e22" font-size="10" font-weight="bold">osc_sender</text>
+  <text x="420" y="1150" fill="#b08050" font-size="7">/steel/bar/{pos,source,sensor/*}</text>
+  <text x="420" y="1162" fill="#b08050" font-size="7">/steel/pedal/ knee/ volume/</text>
+  <text x="420" y="1174" fill="#b08050" font-size="7">/steel/pitch/{0..9}</text>
+  <rect x="650" y="1112" width="220" height="70" rx="5" fill="#101010" stroke="#95a5a6" stroke-width="1.5"/>
+  <text x="760" y="1132" text-anchor="middle" fill="#95a5a6" font-size="10" font-weight="bold">console_display</text>
+  <text x="660" y="1150" fill="#777" font-size="7">live ASCII dashboard</text>
+  <text x="660" y="1162" fill="#777" font-size="7">bar src: sensor/audio/fused</text>
+  <text x="660" y="1174" fill="#777" font-size="7">calibration + debugging</text>
+  <rect x="890" y="1112" width="340" height="70" rx="5" fill="#0a0d17" stroke="#3498db" stroke-width="2"/>
+  <text x="1060" y="1132" text-anchor="middle" fill="#3498db" font-size="10" font-weight="bold">web_viz (WebSocket → Browser)</text>
+  <text x="900" y="1150" fill="#5dade2" font-size="7">instrument state + piano roll + staff notation</text>
+  <text x="900" y="1162" fill="#5dade2" font-size="7">per-string pitch traces (10 colors) · ~60fps</text>
+  <text x="900" y="1174" fill="#5dade2" font-size="7">HTML/Canvas, self-hosted on localhost:8080</text>
+  <line x1="270" y1="1072" x2="270" y2="1112" stroke="#2980b9" stroke-width="1.5" marker-end="url(#arr-b)"/>
+  <line x1="340" y1="1072" x2="470" y2="1112" stroke="#e67e22" stroke-width="1.5" marker-end="url(#arr-o)"/>
+  <line x1="370" y1="1072" x2="720" y2="1112" stroke="#95a5a6" stroke-width="1" stroke-dasharray="2,2"/>
+  <line x1="400" y1="1072" x2="1000" y2="1112" stroke="#3498db" stroke-width="1.5" marker-end="url(#arr-bl)"/>
+  <line x1="150" y1="1360" x2="1250" y2="1360" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="1387" text-anchor="middle" fill="#e74c3c" font-size="14" font-weight="bold" letter-spacing="2">▸ VISUALIZATION + SYNTHESIS</text>
+  <rect x="150" y="1400" width="340" height="100" rx="6" fill="#0d0d18" stroke="#3498db" stroke-width="2" filter="url(#sh)"/>
+  <text x="320" y="1423" text-anchor="middle" fill="#3498db" font-size="13" font-weight="bold">BROWSER VISUALIZATION</text>
+  <line x1="160" y1="1430" x2="480" y2="1430" stroke="#3498db" stroke-width="0.3" opacity="0.3"/>
+  <text x="165" y="1445" fill="#5dade2" font-size="8">• instrument state: bar, pedals, levers, vol</text>
+  <text x="165" y="1458" fill="#5dade2" font-size="8">• 4× hall sensor bar charts (raw readings)</text>
+  <text x="165" y="1471" fill="#5dade2" font-size="8">• scrolling piano roll (10 strings × 10s)</text>
+  <text x="165" y="1484" fill="#5dade2" font-size="8">• grand staff notation · ~60fps canvas</text>
+  <text x="470" y="1492" fill="#3498db" font-size="8" font-weight="bold">✓ BUILT</text>
+  <rect x="530" y="1400" width="260" height="100" rx="6" fill="#0d0d18" stroke="#9b59b6" stroke-width="2" filter="url(#sh)"/>
+  <text x="660" y="1423" text-anchor="middle" fill="#9b59b6" font-size="13" font-weight="bold">CSOUND</text>
+  <line x1="540" y1="1430" x2="780" y2="1430" stroke="#9b59b6" stroke-width="0.3" opacity="0.3"/>
+  <text x="545" y="1445" fill="#8a6aaa" font-size="8">• receives OSC from steel-capture</text>
+  <text x="545" y="1458" fill="#8a6aaa" font-size="8">• 10 per-string oscillators</text>
+  <text x="545" y="1471" fill="#8a6aaa" font-size="8">• volume pedal → amplitude</text>
+  <text x="545" y="1484" fill="#8a6aaa" font-size="8">• Geoff's ambient synthesis</text>
+  <rect x="830" y="1400" width="260" height="100" rx="6" fill="#0d0d18" stroke="#555" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <text x="960" y="1423" text-anchor="middle" fill="#888" font-size="13" font-weight="bold">OTHER TARGETS</text>
+  <line x1="840" y1="1430" x2="1080" y2="1430" stroke="#555" stroke-width="0.3" opacity="0.3"/>
+  <text x="845" y="1445" fill="#666" font-size="8">• SuperCollider / PD / Max</text>
+  <text x="845" y="1458" fill="#666" font-size="8">• DAW via MPE MIDI 2.0</text>
+  <text x="845" y="1471" fill="#666" font-size="8">• Custom Rust synth</text>
+  <text x="845" y="1484" fill="#666" font-size="8">• Replay from logged sessions</text>
+  <line x1="1060" y1="1182" x2="320" y2="1400" stroke="#3498db" stroke-width="2" marker-end="url(#arr-bl)"/>
+  <text x="730" y="1280" fill="#3498db" font-size="9" transform="rotate(-17,730,1280)">WebSocket</text>
+  <line x1="520" y1="1182" x2="620" y2="1400" stroke="#e67e22" stroke-width="2" marker-end="url(#arr-o)"/>
+  <text x="545" y="1310" fill="#e67e22" font-size="9" transform="rotate(-65,545,1310)">OSC/UDP</text>
+  <rect x="580" y="1520" width="180" height="38" rx="19" fill="#111" stroke="#e74c3c" stroke-width="2"/>
+  <text x="670" y="1544" text-anchor="middle" fill="#e74c3c" font-size="11" font-weight="bold">AUDIO OUTPUT</text>
+  <line x1="660" y1="1500" x2="660" y2="1520" stroke="#9b59b6" stroke-width="1.5" marker-end="url(#arr-p)"/>
+  <line x1="150" y1="1580" x2="1250" y2="1580" stroke="#2c3e50" stroke-width="1"/>
+  <text x="700" y="1607" text-anchor="middle" fill="#1abc9c" font-size="14" font-weight="bold" letter-spacing="2">▸ BAR FUSION — sensor + audio collaboration</text>
+  <rect x="150" y="1620" width="1100" height="195" rx="6" fill="#0a1210" stroke="#1abc9c" stroke-width="1" opacity="0.8"/>
+  <text x="175" y="1645" fill="#1abc9c" font-size="11" font-weight="bold">HALL SENSOR ARRAY (primary):</text>
+  <text x="175" y="1662" fill="#76d7c4" font-size="10">4× SS49E along treble rail at frets 0, 5, 10, 15.  6mm neo magnet on bar tip.</text>
+  <text x="175" y="1679" fill="#76d7c4" font-size="10">Field ∝ 1/(d²+h²)^(3/2).  Local peak interpolation → ±0.3 fret.  Works in silence.</text>
+  <text x="175" y="1696" fill="#76d7c4" font-size="10">Hardware: 4× $1.50 sensors + $0.50 magnet = $6.50.  Uses 4 Teensy ADC channels (A9-A12).</text>
+  <text x="175" y="1721" fill="#f1c40f" font-size="11" font-weight="bold">AUDIO SPECTRAL MATCH (refinement):</text>
+  <text x="175" y="1738" fill="#d4c060" font-size="10">For each candidate fret, predict 10 string frequencies via copedant.  Goertzel magnitude → score.</text>
+  <text x="175" y="1755" fill="#d4c060" font-size="10">±0.1 fret (sub-cent) with clean signal.  Only works when strings are sounding.</text>
+  <text x="175" y="1780" fill="#ecf0f1" font-size="11" font-weight="bold">FUSION:</text>
+  <text x="175" y="1797" fill="#bdc3c7" font-size="10">Both → weighted blend (60% audio / 40% sensor).  Disagree &gt;2 frets → trust sensor (audio aliased).</text>
+  <text x="175" y="1810" fill="#bdc3c7" font-size="10">BarSource enum: None | Sensor | Audio | Fused.  Confidence: 0–100%.  28 unit tests.</text>
+  <rect x="150" y="1840" width="1100" height="100" rx="6" fill="#0a0a10" stroke="#2c3e50" stroke-width="1"/>
+  <text x="170" y="1862" fill="#95a5a6" font-size="11" font-weight="bold">LEGEND</text>
+  <g transform="translate(170,1872)">
+    <line x1="0" y1="7" x2="22" y2="7" stroke="#27ae60" stroke-width="2"/><text x="28" y="11" fill="#27ae60" font-size="8">Sensor</text>
+    <line x1="85" y1="7" x2="107" y2="7" stroke="#f39c12" stroke-width="2"/><text x="113" y="11" fill="#f39c12" font-size="8">Audio</text>
+    <line x1="165" y1="7" x2="187" y2="7" stroke="#9b59b6" stroke-width="2"/><text x="193" y="11" fill="#9b59b6" font-size="8">Copedant</text>
+    <line x1="265" y1="7" x2="287" y2="7" stroke="#1abc9c" stroke-width="2"/><text x="293" y="11" fill="#1abc9c" font-size="8">Bar fusion</text>
+    <line x1="370" y1="7" x2="392" y2="7" stroke="#e67e22" stroke-width="2"/><text x="398" y="11" fill="#e67e22" font-size="8">OSC</text>
+    <line x1="440" y1="7" x2="462" y2="7" stroke="#2980b9" stroke-width="2"/><text x="468" y="11" fill="#2980b9" font-size="8">Data log</text>
+    <line x1="530" y1="7" x2="552" y2="7" stroke="#3498db" stroke-width="2"/><text x="558" y="11" fill="#3498db" font-size="8">Web viz</text>
+    <line x1="620" y1="7" x2="642" y2="7" stroke="#2ecc71" stroke-width="2" stroke-dasharray="3,2"/><text x="648" y="11" fill="#2ecc71" font-size="8">Simulator</text>
+  </g>
+  <g transform="translate(170,1895)">
+    <circle cx="8" cy="7" r="4" fill="#27ae60"/><text x="18" y="11" fill="#27ae60" font-size="8">SS49E hall (~$1.50)</text>
+    <circle cx="198" cy="7" r="4" fill="#1abc9c"/><text x="208" y="11" fill="#1abc9c" font-size="8">Bar hall (same SS49E)</text>
+    <circle cx="378" cy="7" r="3" fill="#e74c3c"/><text x="388" y="11" fill="#e74c3c" font-size="8">Neo magnet (~$0.50)</text>
+  </g>
+  <text x="170" y="1922" fill="#7f8c8d" font-size="8">TOTAL HARDWARE: 13× SS49E + 9× magnets + vol sensor + Teensy 4.1 + audio IF ≈ $73 + audio interface</text>
+  <text x="170" y="1934" fill="#7f8c8d" font-size="8">ALL REMOVABLE: magnets w/ tape · sensors on clamp brackets · Teensy velcro under body · ZERO instrument modification</text>
+</svg>
