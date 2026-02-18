@@ -3,23 +3,20 @@
 ## How to Run
 
 ```bash
-# Default: simulator + native GUI window. That's it.
-cargo run
+# Native GUI (wry/tao WebView loading the browser viz)
+cargo run --release -- --demo improv
 
-# Headless (no window, console output only)
-cargo run -- --no-gui --console
+# Headless + browser viz on :8080
+cargo run --release --no-default-features -- --ws --demo improv
 
-# With browser viz too (WebSocket on :8080)
-cargo run -- --ws
-# Then open http://localhost:8080
+# Console TUI only
+cargo run --release --no-default-features -- --console --demo basic
 
 # With hardware (when Teensy is connected)
-cargo run --features hardware -- --simulate false --port /dev/ttyACM0
+cargo run --release --features hardware -- --port /dev/ttyACM0 --ws --detect-strings
 ```
 
-`cargo run` does everything: starts the simulator, launches a native macOS
-window (via egui/eframe), shows real-time visualization. No browser, no
-WebSocket, no HTTP server, no separate processes needed.
+The native GUI starts a WebView window that loads `http://localhost:8080` — the same page you'd see in a browser. The WS server auto-starts when the GUI is active; `--ws` adds external browser access.
 
 
 ## Data Flow
@@ -28,19 +25,22 @@ WebSocket, no HTTP server, no separate processes needed.
 ┌─────────────┐     InputEvent      ┌─────────────┐     CaptureFrame
 │  Simulator   │──────────────────►│ Coordinator  │──────────────────►  Consumers
 │  (or Teensy) │  SensorFrame @1kHz │             │  via channels
-└─────────────┘                    │  - bar infer │
+└─────────────┘  AudioChunk @44.1k  │  - bar infer │
                                    │  - copedant  │    ┌──────────┐
-                                   │  - attacks   │───►│ GUI      │ (main thread)
-                                   └─────────────┘    │ (egui)   │
+                                   │  - string det│───►│ WebView  │ (main thread, opt)
+                                   └─────────────┘    │ (wry/tao)│
                                         │              └──────────┘
                                         │              ┌──────────┐
-                                        └─────────────►│ Console  │ (opt-in)
+                                        ├─────────────►│ WS Server│ (auto or --ws)
                                         │              └──────────┘
                                         │              ┌──────────┐
-                                        └─────────────►│ WS Server│ (opt-in, --ws)
+                                        ├─────────────►│ Console  │ (--console)
                                         │              └──────────┘
                                         │              ┌──────────┐
-                                        └─────────────►│ OSC      │ (opt-in, --osc)
+                                        ├─────────────►│ OSC      │ (--osc)
+                                        │              └──────────┘
+                                        │              ┌──────────┐
+                                        └─────────────►│ Logger   │ (--log-data)
                                                        └──────────┘
 ```
 
@@ -50,10 +50,10 @@ All communication is via crossbeam channels (lock-free, bounded).
 
 | Thread       | What it does                                        |
 |-------------|-----------------------------------------------------|
-| **main**     | Launches threads, then runs egui event loop (blocks) |
-| simulator    | Generates SensorFrame at 1kHz (demo gesture sequence)|
-| coordinator  | Receives inputs, runs bar inference + copedant, detects attacks, broadcasts CaptureFrame to all consumers |
-| ws-server    | (opt-in) HTTP+WS on single port, throttled broadcast |
+| **main**     | Launches threads, then runs WebView event loop (GUI) or waits (headless) |
+| simulator    | Generates SensorFrame at 1kHz + AudioChunk at 44.1kHz |
+| coordinator  | Receives inputs, runs bar inference + copedant + string detection, broadcasts CaptureFrame to all consumers |
+| ws-server    | HTTP+WS on single port, throttled broadcast at --ws-fps |
 | console      | (opt-in) Terminal display at configurable Hz          |
 | osc          | (opt-in) OSC output to DAW/plugin host               |
 | logger       | (opt-in) Writes session data to disk                 |
@@ -112,63 +112,22 @@ Same logic as pedals, for knee levers (LKL, LKR, LKV, RKL, RKR).
 
 ### What is NOT an attack:
 
-- **Bar slide** — Continuous pitch change, no new notehead. This is
-  glissando. The same note bends smoothly to a new position.
-- **Volume change** — Same note, different loudness. No new notehead.
-- **Vibrato** — Rapid small oscillation. No new notehead.
-- **Sustained string** — Already active, no change. No notehead.
+- **Bar slide** — Continuous pitch change, no new notehead. Glissando.
+- **Volume change** — Same note, different loudness.
+- **Vibrato** — Rapid small oscillation.
+- **Sustained string** — Already active, no change.
 
 
-## String Activation — Hardware Options
+## String Detection
 
-`string_active[i]` is just a boolean. The software doesn't care HOW
-you detect it. Options for hardware:
+Handled entirely in software via constrained spectral analysis. Because the copedant state (pedals/levers) and bar position are known at every moment, we know the exact Hz of all 10 strings. Detection is a matched Goertzel filter at each expected frequency — not blind polyphonic pitch detection.
 
-**A. Individual Electromagnetic Pickups (recommended)**
-- Small coil pickup under each string (10 total)
-- 10 analog signals → Teensy ADC
-- Simple threshold onset detection per string
-- Also gives amplitude envelope (volume per string)
-- Can be wound from guitar pickup wire + small magnets
+1. Compute 10 expected frequencies from copedant + bar position
+2. Goertzel magnitude at each frequency (+ 2nd harmonic for noise rejection)
+3. Smoothed energy tracking with hysteresis onset/release thresholds
+4. Reports `(string_active[10], attacks[10])` per analysis frame
 
-**B. Audio Onset Detection**
-- Mic/piezo → audio interface → cpal input
-- Spectral analysis or energy-based onset detection
-- Harder to isolate individual strings from mix
-
-**C. Hall Sensor Pick Detection**
-- SS49E sensors near the picking area
-- Detect string displacement when plucked
-
-**D. Capacitive/Optical**
-- IR break-beam or capacitive proximity
-- Non-contact, but more complex
-
-The current software supports any approach — the hardware layer just
-fills the `string_active` boolean array.
-
-
-## Visualization Panels
-
-The GUI shows four stacked views (top to bottom):
-
-1. **Staff Notation** — Grand staff with noteheads at attack points.
-   Colored by string. Ledger lines and accidentals as needed.
-
-2. **Attack Strip** — Thin timeline showing attack markers. Quick visual
-   for pick density and pedal/lever changes.
-
-3. **Tablature** — 10 lines (one per string). Fret numbers at attacks.
-   Pedal/lever annotations below each number.
-
-4. **Piano Roll** — MIDI-style dots at attack points. Y = pitch, X = time.
-   No connecting lines — discrete dots per event.
-
-All four panels share the same centered-playhead timeline: cursor at
-horizontal center, history scrolls leftward, right side empty.
-
-**Sidebar**: real-time state display — bar position, pedal/lever bars,
-volume, string list with note names and Hz, attack flash indicators.
+Future hardware upgrade path: per-string piezos near the bridge for sub-ms attack timing if the spectral approach proves insufficient for fast picking.
 
 
 ## Copedant (Buddy Emmons E9 Standard)

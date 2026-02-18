@@ -26,7 +26,7 @@ const NUM_CHANNELS: usize = 13;
 /// Each channel has min/max raw values.
 #[derive(Clone)]
 pub struct Calibration {
-    /// (min_raw, max_raw) for each of 9 channels
+    /// (min_raw, max_raw) for each of 13 channels
     pub ranges: [(u16, u16); NUM_CHANNELS],
 }
 
@@ -179,7 +179,7 @@ fn parse_frame(
         .read_u32::<LittleEndian>()
         .map_err(|e| e.to_string())?;
 
-    // ADC values (9 channels, u16 each)
+    // ADC values (13 channels, u16 each)
     let mut raw = [0u16; NUM_CHANNELS];
     for i in 0..NUM_CHANNELS {
         raw[i] = cursor

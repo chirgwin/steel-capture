@@ -4,20 +4,20 @@
 
 A pedal steel guitar expression capture system. Records every aspect of a performance — pedal/lever/volume positions, bar position, which strings are sounding — and streams it all in real time to a browser visualization, OSC (for Csound/SuperCollider), and session logs. Built in Rust. Zero instrument modification.
 
-The owner is Geoff, a composer and musician. He plays pedal steel and wants to capture performances for notation, resynthesis, and analysis.
+The owner is Geoff, a composer and musician. He plays pedal steel and wants to capture performances for visualization/notation, sonification/resynthesis, and analysis/learning.
 
 ## Commands
 
 ```bash
-cargo test --no-default-features        # Run all 46 tests (35 unit + 11 integration)
+cargo test --no-default-features        # Run all 47 tests (36 unit + 11 integration)
 cargo test --no-default-features --lib   # Unit tests only
 cargo test --no-default-features --test integration  # Integration tests only
 cargo build --no-default-features        # Headless build (no GUI dependency)
-cargo build                              # With native egui GUI (needs OpenGL)
+cargo build                              # With native GUI (wry/tao WebView)
 cargo run --release --no-default-features -- --ws  # Run simulator + browser viz on :8080
 ```
 
-Always use `--no-default-features` unless specifically working on the egui GUI. The default feature enables `eframe` which requires OpenGL and heavy dependencies.
+Always use `--no-default-features` unless specifically working on the GUI. The default feature enables `wry`/`tao` (WKWebView on macOS) which requires platform-specific libraries.
 
 ## Architecture
 
@@ -50,8 +50,11 @@ Simulator ──► InputEvent channel ──► Coordinator ──► CaptureFr
 | `osc_sender.rs` | UDP OSC output for DAWs/synthesis |
 | `data_logger.rs` | Session recording (JSONL frames + raw audio binary) |
 | `console_display.rs` | ASCII terminal dashboard |
-| `gui.rs` | Native egui window (optional, behind `gui` feature flag) |
+| `webview_app.rs` | Native WebView GUI via wry/tao (optional, behind `gui` feature flag) |
 | `serial_reader.rs` | Teensy USB serial protocol (behind `hardware` feature flag) |
+| `calibration.rs` | Calibration data types, load/save |
+| `calibrator.rs` | Interactive per-string calibration (behind `calibration` feature flag) |
+| `audio_input.rs` | cpal microphone capture (behind `calibration` feature flag) |
 | `lib.rs` | Public module exports (enables integration tests) |
 | `main.rs` | CLI (clap), thread spawning, channel wiring |
 
@@ -90,12 +93,12 @@ RKR is a two-stop lever: soft stop at ~50% engagement, hard stop at 100%. Modele
 
 ## Hardware (Not Yet Assembled)
 
-~$90 total. Teensy 4.1 + SS49E hall sensors + neodymium magnets. Firmware is in `teensy/steel_capture.ino`. Binary protocol: 26-byte frames with sync word, timestamp, 9 ADC values, CRC-16. All sensors attach with velcro/tape/putty — full removal in 15 minutes.
+~$65 total. Teensy 4.1 + 13× SS49E hall sensors + neodymium magnets (one sensor/magnet pair per channel). Firmware is in `teensy/steel_capture.ino`. Binary protocol: 34-byte frames with sync word, timestamp, 13 ADC values, CRC-16. All sensors attach with velcro/tape/putty — full removal in 15 minutes.
 
 ## Current State (February 2026)
 
 **Working:**
-- Full Rust pipeline, 46 tests (0 warnings)
+- Full Rust pipeline, 47 tests (0 warnings)
 - All modules compile and integrate
 - Simulator runs the demo sequence (~15s of realistic gestures)
 - Browser viz connects and displays
@@ -104,12 +107,12 @@ RKR is a two-stop lever: soft stop at ~50% engagement, hard stop at 100%. Modele
 - OSC, logging, console display all functional
 
 **Needs work / next steps:**
-- Hardware assembly and calibration
+- Hardware assembly and real-world testing
 - Threshold tuning with real steel string audio (synthetic sines ≠ real harmonics/noise)
 - Fast picking resolution testing (42ms window may miss rapid rolls)
 - Session playback improvements in the viz
 - Csound resynthesis patch (Geoff will likely drive this himself)
-- Possible Tier 2 piezo upgrade if spectral detection is insufficient for real playing
+- Possible piezo upgrade if spectral detection is insufficient for real playing
 
 ## Style Notes
 
