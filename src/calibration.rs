@@ -35,8 +35,7 @@ impl Calibration {
     }
 
     pub fn save(&self, path: &std::path::Path) -> io::Result<()> {
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let json = serde_json::to_string_pretty(self).map_err(io::Error::other)?;
         std::fs::write(path, json)?;
         info!("Calibration saved to {:?}", path);
         Ok(())

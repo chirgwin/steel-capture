@@ -64,8 +64,14 @@ impl Coordinator {
     }
 
     pub fn run(&mut self) {
-        info!("Coordinator running (audio string detection: {})",
-              if self.use_audio_detection { "ON" } else { "OFF (simulator ground truth)" });
+        info!(
+            "Coordinator running (audio string detection: {})",
+            if self.use_audio_detection {
+                "ON"
+            } else {
+                "OFF (simulator ground truth)"
+            }
+        );
 
         let mut prev_active = [false; 10];
         let mut prev_pedal_engaged = [false; 3];
@@ -79,31 +85,23 @@ impl Coordinator {
         for event in self.input_rx.iter() {
             match event {
                 InputEvent::Sensor(sensor) => {
-                    
-
                     let bar_state = self.inference.infer(&sensor, &self.engine);
-                    let pitches = self.engine.compute_pitches(
-                        &sensor,
-                        bar_state.position,
-                    );
+                    let pitches = self.engine.compute_pitches(&sensor, bar_state.position);
 
                     // === STRING DETECTION ===
                     // Determine which strings are active and detect attacks.
-                    let (string_active, audio_attacks, string_amplitude) = if self.use_audio_detection {
+                    let (string_active, audio_attacks, string_amplitude) = if self
+                        .use_audio_detection
+                    {
                         // Hardware mode: use audio-based detection
-                        self.string_detector.detect(
-                            &sensor,
-                            bar_state.position,
-                            &self.engine,
-                        )
+                        self.string_detector
+                            .detect(&sensor, bar_state.position, &self.engine)
                     } else {
                         // Simulator mode: use ground truth from sensor frame.
                         // Still run the detector for diagnostics; take its amplitude.
-                        let (_, _, amp) = self.string_detector.detect(
-                            &sensor,
-                            bar_state.position,
-                            &self.engine,
-                        );
+                        let (_, _, amp) =
+                            self.string_detector
+                                .detect(&sensor, bar_state.position, &self.engine);
                         (sensor.string_active, [false; 10], amp)
                     };
 
@@ -183,7 +181,7 @@ impl Coordinator {
                     }
 
                     frame_count += 1;
-                    if frame_count % 1000 == 0 {
+                    if frame_count.is_multiple_of(1000) {
                         debug!("Coordinator: {} frames processed", frame_count);
                         trace!("Latest: {}", frame);
                     }
@@ -208,11 +206,17 @@ impl Coordinator {
 fn pedal_string_map() -> [[bool; 10]; 3] {
     [
         // Pedal A: strings 5,10
-        [false, false, false, false, true, false, false, false, false, true],
+        [
+            false, false, false, false, true, false, false, false, false, true,
+        ],
         // Pedal B: strings 3,6
-        [false, false, true, false, false, true, false, false, false, false],
+        [
+            false, false, true, false, false, true, false, false, false, false,
+        ],
         // Pedal C: strings 4,5
-        [false, false, false, true, true, false, false, false, false, false],
+        [
+            false, false, false, true, true, false, false, false, false, false,
+        ],
     ]
 }
 
@@ -220,14 +224,24 @@ fn pedal_string_map() -> [[bool; 10]; 3] {
 fn lever_string_map() -> [[bool; 10]; 5] {
     [
         // LKL: strings 4,8
-        [false, false, false, true, false, false, false, true, false, false],
+        [
+            false, false, false, true, false, false, false, true, false, false,
+        ],
         // LKR: strings 4,5,8
-        [false, false, false, true, true, false, false, true, false, false],
+        [
+            false, false, false, true, true, false, false, true, false, false,
+        ],
         // LKV: strings 5,10
-        [false, false, false, false, true, false, false, false, false, true],
+        [
+            false, false, false, false, true, false, false, false, false, true,
+        ],
         // RKL: strings 2,6
-        [false, true, false, false, false, true, false, false, false, false],
+        [
+            false, true, false, false, false, true, false, false, false, false,
+        ],
         // RKR: strings 2,9
-        [false, true, false, false, false, false, false, false, true, false],
+        [
+            false, true, false, false, false, false, false, false, true, false,
+        ],
     ]
 }

@@ -40,19 +40,16 @@ impl AudioCapture {
         // Check if any supported range covers it (with the same channel count);
         // fall back to the device default if not.
         let preferred = cpal::SampleRate(48000);
-        let config_48k = device
-            .supported_input_configs()
-            .ok()
-            .and_then(|configs| {
-                configs
-                    .filter(|c| {
-                        c.channels() == supported.channels()
-                            && c.min_sample_rate() <= preferred
-                            && c.max_sample_rate() >= preferred
-                    })
-                    .max_by_key(|c| c.max_sample_rate()) // prefer highest-quality match
-                    .map(|c| c.with_sample_rate(preferred))
-            });
+        let config_48k = device.supported_input_configs().ok().and_then(|configs| {
+            configs
+                .filter(|c| {
+                    c.channels() == supported.channels()
+                        && c.min_sample_rate() <= preferred
+                        && c.max_sample_rate() >= preferred
+                })
+                .max_by_key(|c| c.max_sample_rate()) // prefer highest-quality match
+                .map(|c| c.with_sample_rate(preferred))
+        });
 
         let (config, sample_rate, format): (StreamConfig, u32, SampleFormat) =
             if let Some(cfg) = config_48k {

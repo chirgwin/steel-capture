@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Build (capture only)
+        run: cargo build --no-default-features
+
+      - name: Build (with calibration)
+        run: cargo build --no-default-features --features calibration
+
+      - name: Test (capture — 47 tests)
+        run: cargo test --no-default-features
+
+      - name: Test (with calibration — 51 tests)
+        run: cargo test --no-default-features --features calibration
+
+      - name: Clippy
+        run: cargo clippy --no-default-features --features calibration -- -D warnings
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release (headless)
+        run: cargo build --release --no-default-features
+
+      - name: Smoke test — headless simulator starts and produces frames
+        run: |
+          # Run simulator for 8s, capture log output. Exit code 124 = timeout (expected).
+          timeout 8 cargo run --release --no-default-features -- --demo basic 2>&1 | tee /tmp/smoke.log || true
+          # Verify the pipeline actually started
+          grep -q "STEEL CAPTURE" /tmp/smoke.log
+          grep -q "Coordinator running" /tmp/smoke.log
+          grep -q "Starting simulator" /tmp/smoke.log
+          echo "Smoke test passed — pipeline started and ran for 8s"

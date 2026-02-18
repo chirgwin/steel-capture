@@ -50,11 +50,7 @@ impl CopedantEngine {
     /// Bar at fret N raises each string by N semitones.
     /// Bar slant (if known) applies a per-string offset, but for now
     /// we assume slant=0 (bar perpendicular to strings).
-    pub fn pitches_at_bar(
-        &self,
-        effective_open: &[f64; 10],
-        bar_fret: f32,
-    ) -> [f64; 10] {
+    pub fn pitches_at_bar(&self, effective_open: &[f64; 10], bar_fret: f32) -> [f64; 10] {
         let mut hz = [0.0f64; 10];
         for i in 0..10 {
             hz[i] = midi_to_hz(effective_open[i] + bar_fret as f64);
@@ -63,11 +59,7 @@ impl CopedantEngine {
     }
 
     /// Convenience: compute pitches from sensor frame + bar position.
-    pub fn compute_pitches(
-        &self,
-        sensor: &SensorFrame,
-        bar_fret: Option<f32>,
-    ) -> [f64; 10] {
+    pub fn compute_pitches(&self, sensor: &SensorFrame, bar_fret: Option<f32>) -> [f64; 10] {
         let open = self.effective_open_pitches(sensor);
         match bar_fret {
             Some(fret) => self.pitches_at_bar(&open, fret),
@@ -108,7 +100,7 @@ impl CopedantEngine {
             return None; // More than an octave below open — nonsensical
         }
         let fret = 12.0 * ratio.log2();
-        if fret < -0.5 || fret > 30.0 {
+        if !(-0.5..=30.0).contains(&fret) {
             return None; // Out of reasonable range
         }
         Some(fret as f32)
@@ -159,24 +151,24 @@ pub fn buddy_emmons_e9() -> Copedant {
             ChangeDef {
                 name: "A".into(),
                 changes: vec![
-                    (4, 2.0),   // str5: B3 → C#4
-                    (9, 2.0),   // str10: B2 → C#3
+                    (4, 2.0), // str5: B3 → C#4
+                    (9, 2.0), // str10: B2 → C#3
                 ],
             },
             // Pedal B (P2): raises str3 and str6 by 1 semitone (G#→A)
             ChangeDef {
                 name: "B".into(),
                 changes: vec![
-                    (2, 1.0),   // str3: G#4 → A4
-                    (5, 1.0),   // str6: G#3 → A3
+                    (2, 1.0), // str3: G#4 → A4
+                    (5, 1.0), // str6: G#3 → A3
                 ],
             },
             // Pedal C (P3): raises str4 by 2 (E→F#) and str5 by 2 (B→C#)
             ChangeDef {
                 name: "C".into(),
                 changes: vec![
-                    (3, 2.0),   // str4: E4 → F#4
-                    (4, 2.0),   // str5: B3 → C#4
+                    (3, 2.0), // str4: E4 → F#4
+                    (4, 2.0), // str5: B3 → C#4
                 ],
             },
         ],
@@ -186,25 +178,25 @@ pub fn buddy_emmons_e9() -> Copedant {
             ChangeDef {
                 name: "LKL".into(),
                 changes: vec![
-                    (3, 1.0),   // str4: E4 → F4
-                    (7, 1.0),   // str8: E3 → F3
+                    (3, 1.0), // str4: E4 → F4
+                    (7, 1.0), // str8: E3 → F3
                 ],
             },
             // LKR: lowers str4, str5, and str8 by 1 semitone
             ChangeDef {
                 name: "LKR".into(),
                 changes: vec![
-                    (3, -1.0),  // str4: E4 → D#4/Eb4
-                    (4, -1.0),  // str5: B3 → A#3/Bb3
-                    (7, -1.0),  // str8: E3 → D#3/Eb3
+                    (3, -1.0), // str4: E4 → D#4/Eb4
+                    (4, -1.0), // str5: B3 → A#3/Bb3
+                    (7, -1.0), // str8: E3 → D#3/Eb3
                 ],
             },
             // LKV (vertical): lowers str5 and str10 by 1 semitone (B→A#/Bb)
             ChangeDef {
                 name: "LKV".into(),
                 changes: vec![
-                    (4, -1.0),  // str5: B3 → A#3/Bb3
-                    (9, -1.0),  // str10: B2 → A#2/Bb2
+                    (4, -1.0), // str5: B3 → A#3/Bb3
+                    (9, -1.0), // str10: B2 → A#2/Bb2
                 ],
             },
             // RKL: raises str2 by 1 (D#→E), lowers str6 by 2 (G#→F#)
@@ -213,8 +205,8 @@ pub fn buddy_emmons_e9() -> Copedant {
             ChangeDef {
                 name: "RKL".into(),
                 changes: vec![
-                    (1, 1.0),   // str2: D#4 → E4
-                    (5, -2.0),  // str6: G#3 → F#3
+                    (1, 1.0),  // str2: D#4 → E4
+                    (5, -2.0), // str6: G#3 → F#3
                 ],
             },
             // RKR: Two-stop lever.
@@ -225,8 +217,8 @@ pub fn buddy_emmons_e9() -> Copedant {
             ChangeDef {
                 name: "RKR".into(),
                 changes: vec![
-                    (1, -2.0),  // str2: D#4 → C#4 (full push)
-                    (8, -1.0),  // str9: D3 → C#3
+                    (1, -2.0), // str2: D#4 → C#4 (full push)
+                    (8, -1.0), // str9: D3 → C#3
                 ],
             },
         ],
@@ -296,7 +288,7 @@ mod tests {
         let e = engine();
         let mut s = SensorFrame::at_rest(0);
         s.pedals[0] = 1.0; // Pedal A: string 5 is now C#4 (MIDI 61)
-        // Bar at fret 5 → C#4 + 5 = F#4 = MIDI 66
+                           // Bar at fret 5 → C#4 + 5 = F#4 = MIDI 66
         let detected = midi_to_hz(66.0);
         let inferred = e.infer_bar_position(detected, 4, &s);
         assert!(inferred.is_some());

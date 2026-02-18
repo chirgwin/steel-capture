@@ -74,11 +74,25 @@ impl BarSensor {
         }
 
         // Find the best neighbor (highest reading among adjacent sensors)
-        let left = if peak_idx > 0 { Some((peak_idx - 1, readings[peak_idx - 1])) } else { None };
-        let right = if peak_idx < 3 { Some((peak_idx + 1, readings[peak_idx + 1])) } else { None };
+        let left = if peak_idx > 0 {
+            Some((peak_idx - 1, readings[peak_idx - 1]))
+        } else {
+            None
+        };
+        let right = if peak_idx < 3 {
+            Some((peak_idx + 1, readings[peak_idx + 1]))
+        } else {
+            None
+        };
 
         let neighbor = match (left, right) {
-            (Some(l), Some(r)) => if l.1 >= r.1 { Some(l) } else { Some(r) },
+            (Some(l), Some(r)) => {
+                if l.1 >= r.1 {
+                    Some(l)
+                } else {
+                    Some(r)
+                }
+            }
             (Some(l), None) => Some(l),
             (None, Some(r)) => Some(r),
             (None, None) => None,
@@ -128,6 +142,12 @@ impl BarSensor {
     }
 }
 
+impl Default for BarSensor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Simulate hall sensor readings for a bar at a given fret position.
 ///
 /// Models the magnetic field falloff from a neodymium dipole:
@@ -161,7 +181,10 @@ mod tests {
     fn test_bar_at_fret_0() {
         let readings = simulate_bar_readings(0.0);
         assert!(readings[0] > 0.9, "sensor at fret 0 should be strong");
-        assert!(readings[1] < readings[0], "sensor at fret 5 should be weaker");
+        assert!(
+            readings[1] < readings[0],
+            "sensor at fret 5 should be weaker"
+        );
         assert!(readings[3] < 0.05, "sensor at fret 15 should be near zero");
     }
 
@@ -190,12 +213,18 @@ mod tests {
             let readings = simulate_bar_readings(fret);
             sensor.last_position = None; // no smoothing interference
             let result = sensor.estimate(&readings);
-            assert!(result.is_some(), "bar should be detected at fret {}", target);
+            assert!(
+                result.is_some(),
+                "bar should be detected at fret {}",
+                target
+            );
             let (pos, _conf) = result.unwrap();
             assert!(
                 (pos - fret).abs() < 0.5,
                 "fret {}: estimated {:.2}, error {:.2}",
-                target, pos, (pos - fret).abs()
+                target,
+                pos,
+                (pos - fret).abs()
             );
         }
     }
@@ -213,7 +242,8 @@ mod tests {
             assert!(
                 (pos - half_fret).abs() < 1.0,
                 "fret {}: estimated {:.2}",
-                half_fret, pos
+                half_fret,
+                pos
             );
         }
     }
@@ -247,7 +277,10 @@ mod tests {
         let r2 = simulate_bar_readings(8.0);
         let (pos, _) = sensor.estimate(&r2).unwrap();
         // Should be between 3 and 8 due to smoothing
-        assert!(pos > 3.0 && pos < 8.0,
-            "smoothed pos {:.2} should be between 3 and 8", pos);
+        assert!(
+            pos > 3.0 && pos < 8.0,
+            "smoothed pos {:.2} should be between 3 and 8",
+            pos
+        );
     }
 }

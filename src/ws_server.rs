@@ -32,7 +32,10 @@ impl WsClient {
     fn new(stream: TcpStream) -> Self {
         let _ = stream.set_nonblocking(true);
         let _ = stream.set_nodelay(true);
-        Self { stream, alive: true }
+        Self {
+            stream,
+            alive: true,
+        }
     }
 
     fn send_text(&mut self, text: &str) -> bool {
@@ -55,7 +58,10 @@ impl WsClient {
         frame.extend_from_slice(payload);
         match self.stream.write_all(&frame) {
             Ok(()) => true,
-            Err(_) => { self.alive = false; false }
+            Err(_) => {
+                self.alive = false;
+                false
+            }
         }
     }
 }
@@ -80,11 +86,15 @@ fn parse_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
         let mut line = String::new();
         reader.read_line(&mut line).map_err(|e| e.to_string())?;
         let trimmed = line.trim().to_string();
-        if trimmed.is_empty() { break; }
+        if trimmed.is_empty() {
+            break;
+        }
         if first {
             // Parse "GET /path HTTP/1.1"
             let parts: Vec<&str> = trimmed.split_whitespace().collect();
-            if parts.len() >= 2 { path = parts[1].to_string(); }
+            if parts.len() >= 2 {
+                path = parts[1].to_string();
+            }
             first = false;
         }
         let lower = trimmed.to_lowercase();
@@ -95,7 +105,11 @@ fn parse_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
             ws_key = Some(trimmed[18..].trim().to_string());
         }
     }
-    Ok(HttpRequest { path, is_upgrade, ws_key })
+    Ok(HttpRequest {
+        path,
+        is_upgrade,
+        ws_key,
+    })
 }
 
 fn ws_handshake(stream: &mut TcpStream, key: &str) -> Result<(), String> {
@@ -109,9 +123,12 @@ fn ws_handshake(stream: &mut TcpStream, key: &str) -> Result<(), String> {
          Upgrade: websocket\r\n\
          Connection: Upgrade\r\n\
          Sec-WebSocket-Accept: {}\r\n\
-         \r\n", accept
+         \r\n",
+        accept
     );
-    stream.write_all(response.as_bytes()).map_err(|e| e.to_string())
+    stream
+        .write_all(response.as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 fn serve_html(stream: &mut TcpStream, content: &[u8]) {
@@ -125,23 +142,36 @@ fn serve_static(stream: &mut TcpStream, content: &[u8], content_type: &str) {
          Content-Length: {}\r\n\
          Connection: close\r\n\
          Cache-Control: no-cache\r\n\
-         \r\n", content_type, content.len()
+         \r\n",
+        content_type,
+        content.len()
     );
     let _ = stream.write_all(header.as_bytes());
     let _ = stream.write_all(content);
 }
 
 fn content_type_for(path: &str) -> &'static str {
-    if path.ends_with(".js") { "application/javascript; charset=utf-8" }
-    else if path.ends_with(".css") { "text/css; charset=utf-8" }
-    else if path.ends_with(".json") { "application/json" }
-    else if path.ends_with(".svg") { "image/svg+xml" }
-    else if path.ends_with(".png") { "image/png" }
-    else if path.ends_with(".html") { "text/html; charset=utf-8" }
-    else if path.ends_with(".otf") { "font/otf" }
-    else if path.ends_with(".woff") { "font/woff" }
-    else if path.ends_with(".woff2") { "font/woff2" }
-    else { "application/octet-stream" }
+    if path.ends_with(".js") {
+        "application/javascript; charset=utf-8"
+    } else if path.ends_with(".css") {
+        "text/css; charset=utf-8"
+    } else if path.ends_with(".json") {
+        "application/json"
+    } else if path.ends_with(".svg") {
+        "image/svg+xml"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".html") {
+        "text/html; charset=utf-8"
+    } else if path.ends_with(".otf") {
+        "font/otf"
+    } else if path.ends_with(".woff") {
+        "font/woff"
+    } else if path.ends_with(".woff2") {
+        "font/woff2"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 fn serve_404(stream: &mut TcpStream) {
@@ -151,7 +181,8 @@ fn serve_404(stream: &mut TcpStream) {
          Content-Type: text/html\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\
-         \r\n", body.len()
+         \r\n",
+        body.len()
     );
     let _ = stream.write_all(header.as_bytes());
     let _ = stream.write_all(body);
@@ -163,25 +194,47 @@ fn base64_encode(data: &[u8]) -> String {
     let mut i = 0;
     while i < data.len() {
         let b0 = data[i] as u32;
-        let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+        let b1 = if i + 1 < data.len() {
+            data[i + 1] as u32
+        } else {
+            0
+        };
+        let b2 = if i + 2 < data.len() {
+            data[i + 2] as u32
+        } else {
+            0
+        };
         let triple = (b0 << 16) | (b1 << 8) | b2;
         result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
         result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
         if i + 1 < data.len() {
             result.push(CHARS[((triple >> 6) & 0x3F) as usize] as char);
-        } else { result.push('='); }
+        } else {
+            result.push('=');
+        }
         if i + 2 < data.len() {
             result.push(CHARS[(triple & 0x3F) as usize] as char);
-        } else { result.push('='); }
+        } else {
+            result.push('=');
+        }
         i += 3;
     }
     result
 }
 
 impl WsServer {
-    pub fn new(frame_rx: Receiver<CaptureFrame>, addr: String, target_fps: u32, viz_path: PathBuf) -> Self {
-        Self { frame_rx, addr, target_fps, viz_path }
+    pub fn new(
+        frame_rx: Receiver<CaptureFrame>,
+        addr: String,
+        target_fps: u32,
+        viz_path: PathBuf,
+    ) -> Self {
+        Self {
+            frame_rx,
+            addr,
+            target_fps,
+            viz_path,
+        }
     }
 
     pub fn run(self) {
@@ -190,18 +243,29 @@ impl WsServer {
         // Pre-load the visualization HTML
         let viz_html = match fs::read(&self.viz_path) {
             Ok(data) => {
-                info!("Loaded visualization: {} ({} bytes)", self.viz_path.display(), data.len());
+                info!(
+                    "Loaded visualization: {} ({} bytes)",
+                    self.viz_path.display(),
+                    data.len()
+                );
                 Arc::new(data)
             }
             Err(e) => {
-                warn!("Could not load {}: {} — HTTP serving disabled", self.viz_path.display(), e);
+                warn!(
+                    "Could not load {}: {} — HTTP serving disabled",
+                    self.viz_path.display(),
+                    e
+                );
                 Arc::new(Vec::new())
             }
         };
 
         // Base directory for serving static assets (siblings of visualization.html)
         let base_dir: Arc<PathBuf> = Arc::new(
-            self.viz_path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf()
+            self.viz_path
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf(),
         );
 
         // Spawn acceptor thread
@@ -290,9 +354,9 @@ impl WsServer {
 
         for frame in self.frame_rx.iter() {
             // Latch any attacks from this frame
-            for i in 0..10 {
+            for (i, pending) in pending_attacks.iter_mut().enumerate() {
                 if frame.attacks[i] {
-                    pending_attacks[i] = true;
+                    *pending = true;
                 }
             }
 
@@ -304,8 +368,8 @@ impl WsServer {
 
             // Merge latched attacks into the frame we're about to send
             let mut send_frame = frame.clone();
-            for i in 0..10 {
-                if pending_attacks[i] {
+            for (i, &pending) in pending_attacks.iter().enumerate() {
+                if pending {
                     send_frame.attacks[i] = true;
                 }
             }
@@ -313,7 +377,10 @@ impl WsServer {
 
             let json = match serde_json::to_string(&send_frame) {
                 Ok(j) => j,
-                Err(e) => { warn!("JSON serialize error: {}", e); continue; }
+                Err(e) => {
+                    warn!("JSON serialize error: {}", e);
+                    continue;
+                }
             };
 
             let mut cl = clients.lock().unwrap();

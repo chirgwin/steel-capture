@@ -23,9 +23,7 @@ use steel_capture::types::*;
 fn sine(freq: f64, sr: u32, duration_ms: u32) -> Vec<f32> {
     let n = (sr as u64 * duration_ms as u64 / 1000) as usize;
     (0..n)
-        .map(|i| {
-            (0.7 * (2.0 * std::f64::consts::PI * freq * i as f64 / sr as f64).sin()) as f32
-        })
+        .map(|i| (0.7 * (2.0 * std::f64::consts::PI * freq * i as f64 / sr as f64).sin()) as f32)
         .collect()
 }
 
@@ -56,10 +54,7 @@ fn sensor_with_bar_and_strings(
 
 /// Run a coordinator in a background thread, feeding it a sequence of events.
 /// Collects output CaptureFrames until the input channel closes.
-fn run_pipeline(
-    events: Vec<InputEvent>,
-    use_audio_detection: bool,
-) -> Vec<CaptureFrame> {
+fn run_pipeline(events: Vec<InputEvent>, use_audio_detection: bool) -> Vec<CaptureFrame> {
     let (input_tx, input_rx) = bounded::<InputEvent>(4096);
     let (frame_tx, frame_rx) = bounded::<CaptureFrame>(4096);
 
@@ -69,13 +64,8 @@ fn run_pipeline(
     let coord_handle = thread::Builder::new()
         .name("test-coordinator".into())
         .spawn(move || {
-            let mut coord = Coordinator::new(
-                input_rx,
-                vec![frame_tx],
-                None,
-                copedant,
-            )
-            .with_audio_detection(use_audio_detection);
+            let mut coord = Coordinator::new(input_rx, vec![frame_tx], None, copedant)
+                .with_audio_detection(use_audio_detection);
             coord.run();
         })
         .unwrap();
@@ -116,9 +106,7 @@ fn make_events(
     for tick in 0..n_ticks {
         let ts = tick as u64 * 1000; // microseconds
 
-        let sensor = sensor_with_bar_and_strings(
-            ts, fret, active_strings, pedals, levers, volume,
-        );
+        let sensor = sensor_with_bar_and_strings(ts, fret, active_strings, pedals, levers, volume);
         events.push(InputEvent::Sensor(sensor.clone()));
 
         // Generate matching audio if any strings active and volume > 0
@@ -131,8 +119,7 @@ fn make_events(
                     let freq = midi_to_hz(open[si] + fret as f64);
                     for (j, s) in samples.iter_mut().enumerate() {
                         let t = (sample_counter + j as u64) as f64 / sr as f64;
-                        *s += amp
-                            * (2.0 * std::f64::consts::PI * freq * t).sin() as f32;
+                        *s += amp * (2.0 * std::f64::consts::PI * freq * t).sin() as f32;
                     }
                 }
             }
@@ -155,11 +142,11 @@ fn test_pipeline_basic_three_string_grip() {
     // Should produce frames with correct bar position and pitches.
     let events = make_events(
         3.0,
-        &[2, 3, 4],        // strings 3, 4, 5 (0-indexed)
-        [0.0; 3],           // no pedals
-        [0.0; 5],           // no levers
-        0.8,                // volume
-        400,                // 400ms — enough for inference to stabilize
+        &[2, 3, 4], // strings 3, 4, 5 (0-indexed)
+        [0.0; 3],   // no pedals
+        [0.0; 5],   // no levers
+        0.8,        // volume
+        400,        // 400ms — enough for inference to stabilize
         48000,
     );
 
@@ -172,11 +159,7 @@ fn test_pipeline_basic_three_string_grip() {
     // Bar position should be near 3.0 (inference has smoothing, allow ±1.5 frets)
     assert!(last.bar_position.is_some(), "bar should be detected");
     let bar = last.bar_position.unwrap();
-    assert!(
-        (bar - 3.0).abs() < 1.5,
-        "bar={:.2}, expected ~3.0",
-        bar
-    );
+    assert!((bar - 3.0).abs() < 1.5, "bar={:.2}, expected ~3.0", bar);
 
     // Strings 3,4,5 should be active
     assert!(last.string_active[2], "string 3 should be active");
@@ -201,8 +184,8 @@ fn test_pipeline_pedal_a_changes_pitch() {
     // Pedal A raises strings 5 and 10 by 2 semitones (B→C#)
     let events = make_events(
         5.0,
-        &[3, 4],            // strings 4, 5
-        [1.0, 0.0, 0.0],   // pedal A fully engaged
+        &[3, 4],         // strings 4, 5
+        [1.0, 0.0, 0.0], // pedal A fully engaged
         [0.0; 5],
         0.8,
         400,
@@ -242,9 +225,7 @@ fn test_pipeline_attacks_on_string_onset() {
     // Phase 1: 50 ticks of silence (no strings active)
     for tick in 0..50 {
         let ts = tick as u64 * 1000;
-        let sensor = sensor_with_bar_and_strings(
-            ts, 3.0, &[], [0.0; 3], [0.0; 5], 0.8,
-        );
+        let sensor = sensor_with_bar_and_strings(ts, 3.0, &[], [0.0; 3], [0.0; 5], 0.8);
         events.push(InputEvent::Sensor(sensor));
     }
 
@@ -253,9 +234,7 @@ fn test_pipeline_attacks_on_string_onset() {
     for tick in 50..200 {
         let ts = tick as u64 * 1000;
         let active = &[2usize, 3, 4];
-        let sensor = sensor_with_bar_and_strings(
-            ts, 3.0, active, [0.0; 3], [0.0; 5], 0.8,
-        );
+        let sensor = sensor_with_bar_and_strings(ts, 3.0, active, [0.0; 3], [0.0; 5], 0.8);
         events.push(InputEvent::Sensor(sensor.clone()));
 
         // Generate audio
@@ -327,9 +306,8 @@ fn test_pipeline_pedal_triggers_attack_on_active_strings() {
             1.0
         };
 
-        let sensor = sensor_with_bar_and_strings(
-            ts, 5.0, active, [0.0, pedal_b, 0.0], [0.0; 5], 0.8,
-        );
+        let sensor =
+            sensor_with_bar_and_strings(ts, 5.0, active, [0.0, pedal_b, 0.0], [0.0; 5], 0.8);
         events.push(InputEvent::Sensor(sensor.clone()));
 
         let open = engine.effective_open_pitches(&sensor);
@@ -432,11 +410,11 @@ fn test_audio_string_detection_matches_simulator() {
     // We run 600ms to give the detector plenty of time.
     let events = make_events(
         5.0,
-        &[2, 3, 4],        // strings 3, 4, 5
+        &[2, 3, 4], // strings 3, 4, 5
         [0.0; 3],
         [0.0; 5],
         0.8,
-        600,                // 600ms
+        600, // 600ms
         48000,
     );
 
@@ -444,10 +422,7 @@ fn test_audio_string_detection_matches_simulator() {
     assert!(!frames.is_empty());
 
     // Check frames in the last third (after detector has had time to fill buffer)
-    let late_frames: Vec<_> = frames
-        .iter()
-        .filter(|f| f.timestamp_us > 400_000)
-        .collect();
+    let late_frames: Vec<_> = frames.iter().filter(|f| f.timestamp_us > 400_000).collect();
 
     assert!(!late_frames.is_empty(), "should have late frames");
 
@@ -490,7 +465,9 @@ fn test_copedant_pitches_across_all_frets() {
             assert!(
                 pitches[si] > 20.0 && pitches[si] < 10000.0,
                 "fret {} string {}: pitch {:.1} out of range",
-                fret, si + 1, pitches[si]
+                fret,
+                si + 1,
+                pitches[si]
             );
         }
         // Verify string 4 (E4 = MIDI 64) specifically
@@ -552,14 +529,8 @@ fn test_bar_sensor_to_inference_pipeline() {
 
     for target_fret in [0, 3, 5, 8, 10, 12, 15] {
         let mut inf = BarInference::new();
-        let sensor = sensor_with_bar_and_strings(
-            0,
-            target_fret as f32,
-            &[],
-            [0.0; 3],
-            [0.0; 5],
-            0.0,
-        );
+        let sensor =
+            sensor_with_bar_and_strings(0, target_fret as f32, &[], [0.0; 3], [0.0; 5], 0.0);
 
         let bar = inf.infer(&sensor, &engine);
         assert!(
@@ -590,9 +561,15 @@ fn test_ws_json_serialization() {
         bar_position: Some(5.0),
         bar_confidence: 0.95,
         bar_source: BarSource::Fused,
-        string_pitches_hz: [370.0, 311.0, 415.0, 329.0, 247.0, 207.0, 185.0, 164.0, 147.0, 123.0],
-        string_active: [false, false, true, true, true, false, false, false, false, false],
-        attacks: [false, false, true, false, false, false, false, false, false, false],
+        string_pitches_hz: [
+            370.0, 311.0, 415.0, 329.0, 247.0, 207.0, 185.0, 164.0, 147.0, 123.0,
+        ],
+        string_active: [
+            false, false, true, true, true, false, false, false, false, false,
+        ],
+        attacks: [
+            false, false, true, false, false, false, false, false, false, false,
+        ],
         string_amplitude: [0.0; 10],
     };
 

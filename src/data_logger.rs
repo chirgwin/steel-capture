@@ -75,10 +75,13 @@ impl DataLogger {
                     let _ = writeln!(frames_writer, "{}", line);
                     frame_count += 1;
 
-                    if frame_count % 1000 == 0 {
+                    if frame_count.is_multiple_of(1000) {
                         let _ = frames_writer.flush();
                         let _ = audio_writer.flush();
-                        info!("Logged {} frames, {} audio samples", frame_count, audio_sample_count);
+                        info!(
+                            "Logged {} frames, {} audio samples",
+                            frame_count, audio_sample_count
+                        );
                     }
                 }
                 Err(_) => break,
@@ -143,7 +146,6 @@ impl DataLogger {
         });
 
         let path = self.session_dir.join("manifest.json");
-        fs::write(&path, serde_json::to_string_pretty(&manifest).unwrap())
-            .expect("write manifest");
+        fs::write(&path, serde_json::to_string_pretty(&manifest).unwrap()).expect("write manifest");
     }
 }

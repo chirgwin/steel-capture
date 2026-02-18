@@ -53,7 +53,10 @@ impl Calibrator {
         println!("╠═══════════════════════════════════════════════╣");
         println!("║  Bar at fret 0 (nut), no pedals or levers.    ║");
         println!("║  For each string: press Enter, then pluck      ║");
-        println!("║  ({:.0}s), then be quiet ({:.0}s).                ║", PLUCK_SECS, SILENCE_SECS);
+        println!(
+            "║  ({:.0}s), then be quiet ({:.0}s).                ║",
+            PLUCK_SECS, SILENCE_SECS
+        );
         println!("╚═══════════════════════════════════════════════╝\n");
 
         let mut thresholds = Vec::new();
@@ -98,17 +101,16 @@ impl Calibrator {
             println!(" done ({} measurements).", silence_energies.len());
 
             let (onset, release) = compute_thresholds(&pluck_energies, &silence_energies);
-            println!(
-                "   → onset={:.5}  release={:.5}",
-                onset, release
-            );
+            println!("   → onset={:.5}  release={:.5}", onset, release);
 
             thresholds.push(StringThreshold { onset, release });
         }
 
         println!("\nCalibration complete!\n");
 
-        Calibration { strings: thresholds }
+        Calibration {
+            strings: thresholds,
+        }
     }
 
     /// Drain audio from the channel for `duration_secs`, returning a Vec of
@@ -254,9 +256,16 @@ mod tests {
         let silence: Vec<f64> = (0..20).map(|i| 0.0005 + i as f64 * 0.0001).collect();
         let (onset, release) = compute_thresholds(&pluck, &silence);
         // onset = midpoint between pluck_p75 and silence_p75
-        assert!(onset > 0.01 && onset < 0.06, "onset={} not in expected range", onset);
+        assert!(
+            onset > 0.01 && onset < 0.06,
+            "onset={} not in expected range",
+            onset
+        );
         assert!(release < onset, "release should be below onset");
-        assert!((release - onset * 0.4).abs() < 1e-9, "release should be onset×0.4");
+        assert!(
+            (release - onset * 0.4).abs() < 1e-9,
+            "release should be onset×0.4"
+        );
     }
 
     #[test]
@@ -266,7 +275,11 @@ mod tests {
         let silence: Vec<f64> = vec![0.015; 10];
         let (onset, release) = compute_thresholds(&pluck, &silence);
         // Should compute a threshold between the two values, not use the 0.02 default
-        assert!(onset > 0.015 && onset < 0.02, "onset={} should be between silence and pluck", onset);
+        assert!(
+            onset > 0.015 && onset < 0.02,
+            "onset={} should be between silence and pluck",
+            onset
+        );
         assert!(release < onset);
     }
 
@@ -276,8 +289,16 @@ mod tests {
         let pluck: Vec<f64> = vec![0.001; 10];
         let silence: Vec<f64> = vec![0.005; 10];
         let (onset, release) = compute_thresholds(&pluck, &silence);
-        assert!(onset > 0.005, "onset should be above noise floor, got {}", onset);
-        assert!(release > 0.005, "release should also be above noise floor, got {}", release);
+        assert!(
+            onset > 0.005,
+            "onset should be above noise floor, got {}",
+            onset
+        );
+        assert!(
+            release > 0.005,
+            "release should also be above noise floor, got {}",
+            release
+        );
         assert!(release < onset);
     }
 

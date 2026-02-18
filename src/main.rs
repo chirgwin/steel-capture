@@ -1,20 +1,20 @@
 use steel_capture::calibration::Calibration;
 #[cfg(feature = "calibration")]
 use steel_capture::calibrator::Calibrator;
+use steel_capture::console_display;
 use steel_capture::coordinator;
 use steel_capture::copedant::buddy_emmons_e9;
 #[cfg(feature = "calibration")]
 use steel_capture::copedant::CopedantEngine;
+use steel_capture::data_logger;
+use steel_capture::osc_sender;
+#[cfg(feature = "hardware")]
+use steel_capture::serial_reader;
 use steel_capture::simulator;
 use steel_capture::types::*;
 use steel_capture::wav_player;
 #[cfg(feature = "gui")]
 use steel_capture::webview_app;
-#[cfg(feature = "hardware")]
-use steel_capture::serial_reader;
-use steel_capture::console_display;
-use steel_capture::data_logger;
-use steel_capture::osc_sender;
 use steel_capture::ws_server;
 
 use clap::Parser;
@@ -152,11 +152,9 @@ fn finish_calibration(cal: steel_capture::calibration::Calibration, path: &std::
 }
 
 fn main() {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    )
-    .format_timestamp_millis()
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_millis()
+        .init();
 
     let cli = Cli::parse();
     let copedant = buddy_emmons_e9();
@@ -172,7 +170,10 @@ fn main() {
     // ─── Load calibration if present ────────────────────────────────
     let calibration = Calibration::load(&cli.calibration_file);
     if calibration.is_some() {
-        info!("Per-string calibration loaded from {:?}", cli.calibration_file);
+        info!(
+            "Per-string calibration loaded from {:?}",
+            cli.calibration_file
+        );
     }
 
     let gui_enabled = cfg!(feature = "gui") && !cli.no_gui;
@@ -180,10 +181,26 @@ fn main() {
     info!("═══════════════════════════════════════════════");
     info!("  STEEL CAPTURE v{}", env!("CARGO_PKG_VERSION"));
     info!("  Copedant: {}", copedant.name);
-    info!("  Mode: {}", if cli.simulate { "SIMULATOR" } else { "HARDWARE" });
-    if gui_enabled { info!("  UI: WebView (wry) → http://{}", cli.ws_addr.replace("0.0.0.0", "localhost")); }
-    if cli.ws { info!("  UI: WebSocket on {}", cli.ws_addr); }
-    if cli.console { info!("  UI: Console TUI"); }
+    info!(
+        "  Mode: {}",
+        if cli.simulate {
+            "SIMULATOR"
+        } else {
+            "HARDWARE"
+        }
+    );
+    if gui_enabled {
+        info!(
+            "  UI: WebView (wry) → http://{}",
+            cli.ws_addr.replace("0.0.0.0", "localhost")
+        );
+    }
+    if cli.ws {
+        info!("  UI: WebSocket on {}", cli.ws_addr);
+    }
+    if cli.console {
+        info!("  UI: Console TUI");
+    }
     info!("═══════════════════════════════════════════════");
 
     // Channel: inputs → coordinator
@@ -202,9 +219,14 @@ fn main() {
         let (tx, rx) = bounded::<CaptureFrame>(256);
         frame_txs.push(tx);
         let hz = cli.display_hz;
-        handles.push(thread::Builder::new().name("display".into()).spawn(move || {
-            console_display::ConsoleDisplay::new(rx, hz).run();
-        }).unwrap());
+        handles.push(
+            thread::Builder::new()
+                .name("display".into())
+                .spawn(move || {
+                    console_display::ConsoleDisplay::new(rx, hz).run();
+                })
+                .unwrap(),
+        );
     }
 
     // ─── OSC sender ─────────────────────────────────────────────────
@@ -212,9 +234,14 @@ fn main() {
         let (tx, rx) = bounded::<CaptureFrame>(1024);
         frame_txs.push(tx);
         let target = cli.osc_target.clone();
-        handles.push(thread::Builder::new().name("osc".into()).spawn(move || {
-            osc_sender::OscSender::new(rx, target).run();
-        }).unwrap());
+        handles.push(
+            thread::Builder::new()
+                .name("osc".into())
+                .spawn(move || {
+                    osc_sender::OscSender::new(rx, target).run();
+                })
+                .unwrap(),
+        );
     }
 
     // ─── Data logger ────────────────────────────────────────────────
@@ -223,9 +250,14 @@ fn main() {
         frame_txs.push(tx);
         let output_dir = cli.output_dir.clone();
         let cop = copedant.clone();
-        handles.push(thread::Builder::new().name("logger".into()).spawn(move || {
-            data_logger::DataLogger::new(rx, audio_log_rx, &output_dir, cop).run();
-        }).unwrap());
+        handles.push(
+            thread::Builder::new()
+                .name("logger".into())
+                .spawn(move || {
+                    data_logger::DataLogger::new(rx, audio_log_rx, &output_dir, cop).run();
+                })
+                .unwrap(),
+        );
     }
 
     // ─── WebSocket server ────────────────────────────────────────────
@@ -239,22 +271,32 @@ fn main() {
         let viz_path = std::env::current_dir()
             .unwrap_or_default()
             .join("visualization.html");
-        handles.push(thread::Builder::new().name("ws-server".into()).spawn(move || {
-            ws_server::WsServer::new(rx, ws_addr, ws_fps, viz_path).run();
-        }).unwrap());
+        handles.push(
+            thread::Builder::new()
+                .name("ws-server".into())
+                .spawn(move || {
+                    ws_server::WsServer::new(rx, ws_addr, ws_fps, viz_path).run();
+                })
+                .unwrap(),
+        );
 
         // Auto-open a browser tab when --ws is explicit and the webview is NOT running.
         // (When webview is running it IS the browser; no external tab needed.)
         if cli.ws && !gui_enabled && !cli.no_open {
             let url = format!("http://{}", cli.ws_addr.replace("0.0.0.0", "localhost"));
-            handles.push(thread::Builder::new().name("browser-open".into()).spawn(move || {
-                thread::sleep(std::time::Duration::from_millis(800));
-                #[cfg(target_os = "macos")]
-                let _ = std::process::Command::new("open").arg(&url).spawn();
-                #[cfg(target_os = "linux")]
-                let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
-                info!("Browser opened at {}", url);
-            }).unwrap());
+            handles.push(
+                thread::Builder::new()
+                    .name("browser-open".into())
+                    .spawn(move || {
+                        thread::sleep(std::time::Duration::from_millis(800));
+                        #[cfg(target_os = "macos")]
+                        let _ = std::process::Command::new("open").arg(&url).spawn();
+                        #[cfg(target_os = "linux")]
+                        let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+                        info!("Browser opened at {}", url);
+                    })
+                    .unwrap(),
+            );
         }
     }
 
@@ -262,19 +304,28 @@ fn main() {
 
     // ─── Coordinator ────────────────────────────────────────────────
     let cop2 = copedant.clone();
-    let audio_tx = if cli.log_data { Some(audio_log_tx) } else { None };
+    let audio_tx = if cli.log_data {
+        Some(audio_log_tx)
+    } else {
+        None
+    };
     // Audio detection is on when: hardware mode, --detect-strings, or a WAV file is provided.
     let use_audio_detect = cli.detect_strings || !cli.simulate || cli.audio_file.is_some();
     let cal_onset = calibration.as_ref().map(|c| c.onset_thresholds());
     let cal_release = calibration.as_ref().map(|c| c.release_thresholds());
-    handles.push(thread::Builder::new().name("coordinator".into()).spawn(move || {
-        let mut coord = coordinator::Coordinator::new(input_rx, frame_txs, audio_tx, cop2)
-            .with_audio_detection(use_audio_detect);
-        if let (Some(onset), Some(release)) = (cal_onset, cal_release) {
-            coord = coord.with_string_thresholds(onset, release);
-        }
-        coord.run();
-    }).unwrap());
+    handles.push(
+        thread::Builder::new()
+            .name("coordinator".into())
+            .spawn(move || {
+                let mut coord = coordinator::Coordinator::new(input_rx, frame_txs, audio_tx, cop2)
+                    .with_audio_detection(use_audio_detect);
+                if let (Some(onset), Some(release)) = (cal_onset, cal_release) {
+                    coord = coord.with_string_thresholds(onset, release);
+                }
+                coord.run();
+            })
+            .unwrap(),
+    );
 
     // ─── Input source ───────────────────────────────────────────────
     if cli.simulate {
@@ -284,21 +335,33 @@ fn main() {
         let sim_cop = copedant.clone();
         let rate = cli.sensor_rate;
         let suppress_audio = cli.audio_file.is_some();
-        handles.push(thread::Builder::new().name("simulator".into()).spawn(move || {
-            let demo = cli.demo.clone();
-            let mut sim = simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate);
-            if suppress_audio { sim = sim.with_suppress_audio(); }
-            sim.run(&demo);
-        }).unwrap());
+        handles.push(
+            thread::Builder::new()
+                .name("simulator".into())
+                .spawn(move || {
+                    let demo = cli.demo.clone();
+                    let mut sim = simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate);
+                    if suppress_audio {
+                        sim = sim.with_suppress_audio();
+                    }
+                    sim.run(&demo);
+                })
+                .unwrap(),
+        );
 
-    // ─── WAV file audio input ────────────────────────────────────────
-    if let Some(path) = cli.audio_file.clone() {
-        let wav_clock = clock.clone();
-        let wav_tx = input_tx.clone();
-        handles.push(thread::Builder::new().name("wav-player".into()).spawn(move || {
-            wav_player::WavPlayer::new(path, wav_tx, wav_clock).run();
-        }).unwrap());
-    }
+        // ─── WAV file audio input ────────────────────────────────────────
+        if let Some(path) = cli.audio_file.clone() {
+            let wav_clock = clock.clone();
+            let wav_tx = input_tx.clone();
+            handles.push(
+                thread::Builder::new()
+                    .name("wav-player".into())
+                    .spawn(move || {
+                        wav_player::WavPlayer::new(path, wav_tx, wav_clock).run();
+                    })
+                    .unwrap(),
+            );
+        }
     } else {
         #[cfg(feature = "hardware")]
         {
@@ -306,9 +369,14 @@ fn main() {
             let ser_clock = clock.clone();
             let ser_tx = input_tx.clone();
             let port = cli.port.clone();
-            handles.push(thread::Builder::new().name("serial".into()).spawn(move || {
-                serial_reader::SerialReader::new(port, ser_tx, ser_clock).run();
-            }).unwrap());
+            handles.push(
+                thread::Builder::new()
+                    .name("serial".into())
+                    .spawn(move || {
+                        serial_reader::SerialReader::new(port, ser_tx, ser_clock).run();
+                    })
+                    .unwrap(),
+            );
         }
         #[cfg(not(feature = "hardware"))]
         {
@@ -318,9 +386,14 @@ fn main() {
             let sim_cop = copedant.clone();
             let rate = cli.sensor_rate;
             let demo = cli.demo.clone();
-            handles.push(thread::Builder::new().name("simulator".into()).spawn(move || {
-                simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run(&demo);
-            }).unwrap());
+            handles.push(
+                thread::Builder::new()
+                    .name("simulator".into())
+                    .spawn(move || {
+                        simulator::Simulator::new(sim_clock, sim_tx, sim_cop, rate).run(&demo);
+                    })
+                    .unwrap(),
+            );
         }
     }
 

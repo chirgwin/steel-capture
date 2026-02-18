@@ -173,8 +173,8 @@ impl StringDetector {
             let normalized = raw_energy / n as f64;
 
             // Smooth the energy
-            self.energy[si] = self.energy[si] * self.smoothing
-                + normalized * (1.0 - self.smoothing);
+            self.energy[si] =
+                self.energy[si] * self.smoothing + normalized * (1.0 - self.smoothing);
 
             // Threshold with hysteresis (per-string calibrated values)
             if self.active[si] {
@@ -193,8 +193,16 @@ impl StringDetector {
 
         trace!(
             "string_det: active=[{}] energy=[{}]",
-            self.active.iter().map(|&a| if a { "█" } else { "·" }).collect::<Vec<_>>().join(""),
-            self.energy.iter().map(|e| format!("{:.3}", e)).collect::<Vec<_>>().join(" "),
+            self.active
+                .iter()
+                .map(|&a| if a { "█" } else { "·" })
+                .collect::<Vec<_>>()
+                .join(""),
+            self.energy
+                .iter()
+                .map(|e| format!("{:.3}", e))
+                .collect::<Vec<_>>()
+                .join(" "),
         );
 
         (self.active, attacks, self.amplitude())
@@ -203,8 +211,8 @@ impl StringDetector {
     /// Per-string amplitude as f32, cast from the internal f64 energy array.
     fn amplitude(&self) -> [f32; 10] {
         let mut out = [0.0f32; 10];
-        for i in 0..10 {
-            out[i] = self.energy[i] as f32;
+        for (i, val) in out.iter_mut().enumerate() {
+            *val = self.energy[i] as f32;
         }
         out
     }
@@ -223,6 +231,12 @@ impl StringDetector {
     }
 }
 
+impl Default for StringDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Goertzel algorithm: compute magnitude of a single frequency bin.
 pub(crate) fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) -> f64 {
     let k = (freq * n as f64 / sample_rate).round();
@@ -230,8 +244,8 @@ pub(crate) fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n
     let coeff = 2.0 * w.cos();
     let mut s1 = 0.0f64;
     let mut s2 = 0.0f64;
-    for i in 0..n {
-        let s0 = samples[i] as f64 + coeff * s1 - s2;
+    for sample in samples.iter().take(n) {
+        let s0 = *sample as f64 + coeff * s1 - s2;
         s2 = s1;
         s1 = s0;
     }
@@ -310,17 +324,24 @@ mod tests {
         let freq = midi_to_hz(68.0 + 3.0);
         let samples = sine(freq, 48000, 100);
 
-        let (active, attacks, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
+        let (active, attacks, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
+        assert!(
+            active[2],
+            "string 3 (G#4 at fret 3) should be detected as active"
         );
-        assert!(active[2], "string 3 (G#4 at fret 3) should be detected as active");
         assert!(attacks[2], "should register as attack on first detection");
         // Other strings should NOT be active (their frequencies differ)
-        let other_active: usize = active.iter().enumerate()
-            .filter(|&(i, &a)| i != 2 && a).count();
-        assert!(other_active <= 1,
+        let other_active: usize = active
+            .iter()
+            .enumerate()
+            .filter(|&(i, &a)| i != 2 && a)
+            .count();
+        assert!(
+            other_active <= 1,
             "at most 1 other string should be active (harmonic coincidence), got {}",
-            other_active);
+            other_active
+        );
     }
 
     #[test]
@@ -337,9 +358,8 @@ mod tests {
             .collect();
         let samples = multi_sine(&freqs, 48000, 100);
 
-        let (active, _attacks, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
-        );
+        let (active, _attacks, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(active[2], "string 3 should be active");
         assert!(active[3], "string 4 should be active");
         assert!(active[4], "string 5 should be active");
@@ -358,9 +378,8 @@ mod tests {
         let freq = midi_to_hz(open[4] + 5.0);
         let samples = sine(freq, 48000, 100);
 
-        let (active, _, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(5.0), &engine,
-        );
+        let (active, _, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(5.0), &engine);
         assert!(active[4], "string 5 with pedal A should be detected");
     }
 
@@ -371,10 +390,12 @@ mod tests {
         let sensor = SensorFrame::at_rest(0);
 
         let samples = vec![0.0f32; 4800]; // 100ms of silence
-        let (active, attacks, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
+        let (active, attacks, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
+        assert!(
+            active.iter().all(|&a| !a),
+            "all strings should be inactive during silence"
         );
-        assert!(active.iter().all(|&a| !a), "all strings should be inactive during silence");
         assert!(attacks.iter().all(|&a| !a), "no attacks during silence");
     }
 
@@ -385,10 +406,11 @@ mod tests {
         let sensor = SensorFrame::at_rest(0);
 
         let samples = sine(440.0, 48000, 100);
-        let (active, _, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, None, &engine,
+        let (active, _, _) = feed_and_detect(&mut det, &samples, 48000, &sensor, None, &engine);
+        assert!(
+            active.iter().all(|&a| !a),
+            "all inactive when bar position unknown"
         );
-        assert!(active.iter().all(|&a| !a), "all inactive when bar position unknown");
     }
 
     #[test]
@@ -402,15 +424,13 @@ mod tests {
         let samples = sine(freq, 48000, 100);
 
         // First detection: should have attack
-        let (_, attacks1, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
-        );
+        let (_, attacks1, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(attacks1[3], "first detection should be an attack");
 
         // Second detection with same signal: NO new attack
-        let (active2, attacks2, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
-        );
+        let (active2, attacks2, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(active2[3], "still active");
         assert!(!attacks2[3], "no new attack — string was already active");
     }
@@ -426,9 +446,8 @@ mod tests {
 
         // Attack
         let samples = sine(freq, 48000, 100);
-        let (_, attacks1, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
-        );
+        let (_, attacks1, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(attacks1[3]);
 
         // Release (silence)
@@ -440,9 +459,8 @@ mod tests {
         assert!(!det.active[3], "should be released after silence");
 
         // Re-attack
-        let (_, attacks3, _) = feed_and_detect(
-            &mut det, &samples, 48000, &sensor, Some(3.0), &engine,
-        );
+        let (_, attacks3, _) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(attacks3[3], "should register as new attack after release");
     }
 }

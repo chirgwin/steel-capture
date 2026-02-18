@@ -51,9 +51,9 @@ impl BarInference {
             silence_count: 0,
             fret_candidates,
             audio_buf: Vec::with_capacity(8192),
-            analysis_window: 4096,   // ~85ms at 48kHz — resolves B2 (123Hz)
+            analysis_window: 4096, // ~85ms at 48kHz — resolves B2 (123Hz)
             samples_since_analysis: 0,
-            analysis_interval: 2048,  // run analysis every ~42ms
+            analysis_interval: 2048, // run analysis every ~42ms
             sample_rate: 48000,
             bar_sensor: BarSensor::new(),
         }
@@ -80,11 +80,7 @@ impl BarInference {
     }
 
     /// Run bar position inference, fusing hall sensor and audio sources.
-    pub fn infer(
-        &mut self,
-        sensor: &SensorFrame,
-        engine: &CopedantEngine,
-    ) -> BarState {
+    pub fn infer(&mut self, sensor: &SensorFrame, engine: &CopedantEngine) -> BarState {
         // ── 1. Hall sensor estimate (always available) ────────────────
         let sensor_est = self.bar_sensor.estimate(&sensor.bar_sensors);
 
@@ -108,7 +104,10 @@ impl BarInference {
                     (blended, conf)
                 } else {
                     // Large disagreement: trust sensor, audio may be aliased
-                    trace!("bar fusion: disagreement {:.1} frets, trusting sensor", disagreement);
+                    trace!(
+                        "bar fusion: disagreement {:.1} frets, trusting sensor",
+                        disagreement
+                    );
                     (s_pos, s_conf * 0.8)
                 };
 
@@ -162,11 +161,7 @@ impl BarInference {
     }
 
     /// Audio-only bar position estimate via spectral template matching.
-    fn infer_audio(
-        &mut self,
-        sensor: &SensorFrame,
-        engine: &CopedantEngine,
-    ) -> Option<(f32, f32)> {
+    fn infer_audio(&mut self, sensor: &SensorFrame, engine: &CopedantEngine) -> Option<(f32, f32)> {
         if !self.ready() {
             return None;
         }
@@ -206,17 +201,26 @@ impl BarInference {
 
         // Confidence: how much does the best stand out from average?
         let avg_score = total_score / self.fret_candidates.len() as f64;
-        let confidence = ((best_score / avg_score - 1.0) / 10.0).min(1.0).max(0.1) as f32;
+        let confidence = ((best_score / avg_score - 1.0) / 10.0).clamp(0.1, 1.0) as f32;
 
         // Parabolic refinement around best candidate
         let refined = refine_fret(best_fret, &open, samples, sr);
 
         trace!(
             "audio: fret={:.2} (from {:.1}) conf={:.2} score={:.2e}",
-            refined, best_fret, confidence, best_score
+            refined,
+            best_fret,
+            confidence,
+            best_score
         );
 
         Some((refined, confidence))
+    }
+}
+
+impl Default for BarInference {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -227,8 +231,8 @@ impl BarInference {
 fn score_fret(fret: f32, open_midi: &[f64; 10], samples: &[f32], sr: f64) -> f64 {
     let mut score = 0.0f64;
     let n = samples.len();
-    for si in 0..10 {
-        let freq = midi_to_hz(open_midi[si] + fret as f64);
+    for midi in open_midi.iter().take(10) {
+        let freq = midi_to_hz(*midi + fret as f64);
         if freq > sr / 2.0 || freq < 20.0 {
             continue;
         }
@@ -259,7 +263,7 @@ fn refine_fret(best: f32, open: &[f64; 10], samples: &[f32], sr: f64) -> f32 {
         return best;
     }
     let offset = 0.5 * (s_below - s_above) / denom;
-    (best + (offset as f32) * step).max(0.0).min(24.0)
+    (best + (offset as f32) * step).clamp(0.0, 24.0)
 }
 
 /// Goertzel algorithm: compute magnitude of a single frequency bin.
@@ -270,8 +274,8 @@ fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) ->
     let coeff = 2.0 * w.cos();
     let mut s1 = 0.0f64;
     let mut s2 = 0.0f64;
-    for i in 0..n {
-        let s0 = samples[i] as f64 + coeff * s1 - s2;
+    for sample in samples.iter().take(n) {
+        let s0 = *sample as f64 + coeff * s1 - s2;
         s2 = s1;
         s1 = s0;
     }
@@ -279,11 +283,12 @@ fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) ->
 }
 
 fn compute_rms(samples: &[f32]) -> f32 {
-    if samples.is_empty() { return 0.0; }
+    if samples.is_empty() {
+        return 0.0;
+    }
     let sum: f32 = samples.iter().map(|s| s * s).sum();
     (sum / samples.len() as f32).sqrt()
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -292,23 +297,37 @@ mod tests {
 
     fn sine_wave(freq_hz: f64, sr: u32, ms: u32) -> Vec<f32> {
         let n = (sr as u64 * ms as u64 / 1000) as usize;
-        (0..n).map(|i| {
-            (0.8 * (2.0 * PI * freq_hz * i as f64 / sr as f64).sin()) as f32
-        }).collect()
+        (0..n)
+            .map(|i| (0.8 * (2.0 * PI * freq_hz * i as f64 / sr as f64).sin()) as f32)
+            .collect()
     }
 
     fn multi_sine(freqs: &[f64], sr: u32, ms: u32) -> Vec<f32> {
         let n = (sr as u64 * ms as u64 / 1000) as usize;
         let amp = 0.6 / freqs.len() as f64;
-        (0..n).map(|i| {
-            let t = i as f64 / sr as f64;
-            freqs.iter().map(|&f| amp * (2.0 * PI * f * t).sin()).sum::<f64>() as f32
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let t = i as f64 / sr as f64;
+                freqs
+                    .iter()
+                    .map(|&f| amp * (2.0 * PI * f * t).sin())
+                    .sum::<f64>() as f32
+            })
+            .collect()
     }
 
-    fn feed_and_infer(inf: &mut BarInference, samples: &[f32], sr: u32,
-                      sensor: &SensorFrame, engine: &CopedantEngine) -> BarState {
-        let chunk = AudioChunk { timestamp_us: 0, samples: samples.to_vec(), sample_rate: sr };
+    fn feed_and_infer(
+        inf: &mut BarInference,
+        samples: &[f32],
+        sr: u32,
+        sensor: &SensorFrame,
+        engine: &CopedantEngine,
+    ) -> BarState {
+        let chunk = AudioChunk {
+            timestamp_us: 0,
+            samples: samples.to_vec(),
+            sample_rate: sr,
+        };
         inf.push_audio(&chunk);
         // Force the analysis window to be satisfied
         inf.analysis_window = samples.len().min(inf.analysis_window);
@@ -330,7 +349,12 @@ mod tests {
         let n = samples.len();
         let m440 = goertzel_magnitude(&samples, 440.0, 48000.0, n);
         let m300 = goertzel_magnitude(&samples, 300.0, 48000.0, n);
-        assert!(m440 > m300 * 5.0, "440={:.1} should >> 300={:.1}", m440, m300);
+        assert!(
+            m440 > m300 * 5.0,
+            "440={:.1} should >> 300={:.1}",
+            m440,
+            m300
+        );
     }
 
     #[test]
@@ -341,7 +365,10 @@ mod tests {
         // Bar at fret 3, but no audio (silence)
         let sensor = sensor_at_fret(3.0);
         let r = inf.infer(&sensor, &engine);
-        assert!(r.position.is_some(), "sensor should detect bar during silence");
+        assert!(
+            r.position.is_some(),
+            "sensor should detect bar during silence"
+        );
         let p = r.position.unwrap();
         assert!((p - 3.0).abs() < 1.0, "pos={:.2}, want ~3.0", p);
         assert_eq!(r.source, BarSource::Sensor);
@@ -355,8 +382,10 @@ mod tests {
         // Bar at fret 3 with matching audio
         let sensor = sensor_at_fret(3.0);
         let open = engine.effective_open_pitches(&sensor);
-        let freqs: Vec<f64> = [2, 3, 4].iter()
-            .map(|&si| midi_to_hz(open[si] + 3.0)).collect();
+        let freqs: Vec<f64> = [2, 3, 4]
+            .iter()
+            .map(|&si| midi_to_hz(open[si] + 3.0))
+            .collect();
         let samples = multi_sine(&freqs, 48000, 100);
         let r = feed_and_infer(&mut inf, &samples, 48000, &sensor, &engine);
         assert!(r.position.is_some(), "should detect fused");
@@ -373,8 +402,10 @@ mod tests {
         let mut sensor = sensor_at_fret(5.0);
         sensor.pedals[0] = 1.0;
         let open = engine.effective_open_pitches(&sensor);
-        let freqs: Vec<f64> = [2, 3, 4].iter()
-            .map(|&si| midi_to_hz(open[si] + 5.0)).collect();
+        let freqs: Vec<f64> = [2, 3, 4]
+            .iter()
+            .map(|&si| midi_to_hz(open[si] + 5.0))
+            .collect();
         let samples = multi_sine(&freqs, 48000, 100);
         let r = feed_and_infer(&mut inf, &samples, 48000, &sensor, &engine);
         assert!(r.position.is_some());

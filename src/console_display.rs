@@ -14,13 +14,17 @@ impl ConsoleDisplay {
     }
 
     pub fn run(&self) {
-        let skip = if self.update_hz == 0 { 50 } else { (1000 / self.update_hz).max(1) as u64 };
+        let skip = if self.update_hz == 0 {
+            50
+        } else {
+            (1000 / self.update_hz).max(1) as u64
+        };
         let mut count: u64 = 0;
         let mut stdout = io::stdout();
 
         for frame in self.rx.iter() {
             count += 1;
-            if count % skip != 0 {
+            if !count.is_multiple_of(skip) {
                 continue;
             }
 
@@ -33,15 +37,23 @@ impl ConsoleDisplay {
 
             // Timestamp
             let secs = frame.timestamp_us as f64 / 1_000_000.0;
-            println!("║  Time: {:.2}s                                          ║", secs);
+            println!(
+                "║  Time: {:.2}s                                          ║",
+                secs
+            );
 
             // Pedals
             println!("║                                                          ║");
             println!("║  Pedals:                                                 ║");
             for (i, &val) in frame.pedals.iter().enumerate() {
                 let bar = make_bar(val, 30);
-                println!("║    {}: {} {:.0}%{}", PEDAL_NAMES[i], bar, val * 100.0,
-                    " ".repeat(20 - format!("{:.0}", val * 100.0).len()));
+                println!(
+                    "║    {}: {} {:.0}%{}",
+                    PEDAL_NAMES[i],
+                    bar,
+                    val * 100.0,
+                    " ".repeat(20 - format!("{:.0}", val * 100.0).len())
+                );
             }
 
             // Knee levers
@@ -49,16 +61,23 @@ impl ConsoleDisplay {
             println!("║  Knee Levers:                                            ║");
             for (i, &val) in frame.knee_levers.iter().enumerate() {
                 let bar = make_bar(val, 30);
-                println!("║    {:>3}: {} {:.0}%{}",
-                    LEVER_NAMES[i], bar, val * 100.0,
-                    " ".repeat(18 - format!("{:.0}", val * 100.0).len()));
+                println!(
+                    "║    {:>3}: {} {:.0}%{}",
+                    LEVER_NAMES[i],
+                    bar,
+                    val * 100.0,
+                    " ".repeat(18 - format!("{:.0}", val * 100.0).len())
+                );
             }
 
             // Volume
             println!("║                                                          ║");
             let vbar = make_bar(frame.volume, 30);
-            println!("║  Volume: {} {:.0}%                             ║",
-                vbar, frame.volume * 100.0);
+            println!(
+                "║  Volume: {} {:.0}%                             ║",
+                vbar,
+                frame.volume * 100.0
+            );
 
             // Bar position
             println!("║                                                          ║");
@@ -71,8 +90,12 @@ impl ConsoleDisplay {
                         BarSource::Audio => "audio",
                         BarSource::Fused => "fused",
                     };
-                    println!("║  Bar: fret {:.2} (conf: {:.0}%, src: {:6})         ║",
-                        pos, frame.bar_confidence * 100.0, src);
+                    println!(
+                        "║  Bar: fret {:.2} (conf: {:.0}%, src: {:6})         ║",
+                        pos,
+                        frame.bar_confidence * 100.0,
+                        src
+                    );
                     println!("║  {} ║", fret_display);
                 }
                 None => {
@@ -86,8 +109,10 @@ impl ConsoleDisplay {
             println!("║  String Pitches:                                         ║");
             for (i, &hz) in frame.string_pitches_hz.iter().enumerate() {
                 let note = hz_to_note_name(hz);
-                println!("║    {:>6}: {:>7.1} Hz  ({:>4})                        ║",
-                    E9_STRING_NAMES[i], hz, note);
+                println!(
+                    "║    {:>6}: {:>7.1} Hz  ({:>4})                        ║",
+                    E9_STRING_NAMES[i], hz, note
+                );
             }
 
             println!("╚══════════════════════════════════════════════════════════╝");
@@ -130,7 +155,9 @@ fn hz_to_note_name(hz: f64) -> String {
     let note_num = midi.round() as i32;
     let cents = ((midi - note_num as f64) * 100.0).round() as i32;
 
-    let note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    let note_names = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
     let name = note_names[((note_num % 12 + 12) % 12) as usize];
     let octave = (note_num / 12) - 1;
 

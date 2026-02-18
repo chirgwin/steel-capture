@@ -161,7 +161,9 @@ impl fmt::Display for CaptureFrame {
             bar_str,
             self.bar_confidence,
             src,
-            self.pedals[0], self.pedals[1], self.pedals[2],
+            self.pedals[0],
+            self.pedals[1],
+            self.pedals[2],
             self.volume,
         )
     }
@@ -208,11 +210,19 @@ pub struct SessionClock {
 
 impl SessionClock {
     pub fn new() -> Self {
-        Self { start: Instant::now() }
+        Self {
+            start: Instant::now(),
+        }
     }
 
     pub fn now_us(&self) -> u64 {
         self.start.elapsed().as_micros() as u64
+    }
+}
+
+impl Default for SessionClock {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -221,8 +231,7 @@ impl SessionClock {
 pub const PEDAL_NAMES: [&str; 3] = ["A", "B", "C"];
 pub const LEVER_NAMES: [&str; 5] = ["LKL", "LKR", "LKV", "RKL", "RKR"];
 pub const E9_STRING_NAMES: [&str; 10] = [
-    "1:F#4", "2:D#4", "3:G#4", "4:E4", "5:B3",
-    "6:G#3", "7:F#3", "8:E3", "9:D3", "10:B2",
+    "1:F#4", "2:D#4", "3:G#4", "4:E4", "5:B3", "6:G#3", "7:F#3", "8:E3", "9:D3", "10:B2",
 ];
 
 /// Fret positions where bar hall sensors are mounted.

@@ -49,11 +49,7 @@ pub struct SerialReader {
 }
 
 impl SerialReader {
-    pub fn new(
-        port_name: String,
-        tx: Sender<InputEvent>,
-        clock: SessionClock,
-    ) -> Self {
+    pub fn new(port_name: String, tx: Sender<InputEvent>, clock: SessionClock) -> Self {
         Self {
             port_name,
             baud_rate: 115200,
@@ -70,7 +66,10 @@ impl SerialReader {
 
     /// Run the serial reader loop. Blocks the calling thread.
     pub fn run(&self) {
-        info!("Opening serial port: {} @ {}", self.port_name, self.baud_rate);
+        info!(
+            "Opening serial port: {} @ {}",
+            self.port_name, self.baud_rate
+        );
 
         let port = serialport::new(&self.port_name, self.baud_rate)
             .timeout(Duration::from_millis(100))
@@ -109,16 +108,17 @@ impl SerialReader {
                                 break;
                             }
 
-                            let frame_bytes: Vec<u8> =
-                                frame_buf.drain(..FRAME_SIZE).collect();
+                            let frame_bytes: Vec<u8> = frame_buf.drain(..FRAME_SIZE).collect();
 
                             match parse_frame(&frame_bytes, &self.calibration, &self.clock) {
                                 Ok(sensor) => {
                                     let _ = self.tx.send(InputEvent::Sensor(sensor));
                                     frame_count += 1;
                                     if frame_count % 5000 == 0 {
-                                        info!("Serial: {} frames, {} errors",
-                                              frame_count, error_count);
+                                        info!(
+                                            "Serial: {} frames, {} errors",
+                                            frame_count, error_count
+                                        );
                                     }
                                 }
                                 Err(e) => {
@@ -167,22 +167,30 @@ fn parse_frame(
     let mut cursor = Cursor::new(data);
 
     // Sync word
-    let sync = cursor.read_u16::<LittleEndian>().map_err(|e| e.to_string())?;
+    let sync = cursor
+        .read_u16::<LittleEndian>()
+        .map_err(|e| e.to_string())?;
     if sync != SYNC_WORD {
         return Err(format!("bad sync: 0x{:04X}", sync));
     }
 
     // Timestamp from Teensy (u32 microseconds, wrapping)
-    let _teensy_ts = cursor.read_u32::<LittleEndian>().map_err(|e| e.to_string())?;
+    let _teensy_ts = cursor
+        .read_u32::<LittleEndian>()
+        .map_err(|e| e.to_string())?;
 
     // ADC values (9 channels, u16 each)
     let mut raw = [0u16; NUM_CHANNELS];
     for i in 0..NUM_CHANNELS {
-        raw[i] = cursor.read_u16::<LittleEndian>().map_err(|e| e.to_string())?;
+        raw[i] = cursor
+            .read_u16::<LittleEndian>()
+            .map_err(|e| e.to_string())?;
     }
 
     // CRC16
-    let received_crc = cursor.read_u16::<LittleEndian>().map_err(|e| e.to_string())?;
+    let received_crc = cursor
+        .read_u16::<LittleEndian>()
+        .map_err(|e| e.to_string())?;
     let computed_crc = crc16(&data[..FRAME_SIZE - 2]);
     if received_crc != computed_crc {
         return Err(format!(
@@ -206,11 +214,19 @@ fn parse_frame(
         timestamp_us,
         pedals: [calibrated[0], calibrated[1], calibrated[2]],
         knee_levers: [
-            calibrated[3], calibrated[4], calibrated[5],
-            calibrated[6], calibrated[7],
+            calibrated[3],
+            calibrated[4],
+            calibrated[5],
+            calibrated[6],
+            calibrated[7],
         ],
         volume: calibrated[8],
-        bar_sensors: [calibrated[9], calibrated[10], calibrated[11], calibrated[12]],
+        bar_sensors: [
+            calibrated[9],
+            calibrated[10],
+            calibrated[11],
+            calibrated[12],
+        ],
         // Hardware doesn't know which strings are picked — audio detection handles this.
         string_active: [false; 10],
     })
