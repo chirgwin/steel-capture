@@ -268,7 +268,8 @@ function toggleW(){if(wsConn){wsConn.close();wsConn=null;document.getElementById
           volume:d.volume!=null?d.volume:0,bar_position:d.bar_position!=null?d.bar_position:null,
           bar_confidence:d.bar_confidence||0,bar_source:d.bar_source||'None',bar_sensors:d.bar_sensors||[0,0,0,0],
           string_pitches_hz:d.string_pitches_hz||new Array(10).fill(0),string_active:d.string_active?d.string_active.map(Boolean):new Array(10).fill(false),
-          attacks:d.attacks?d.attacks.map(Boolean):new Array(10).fill(false)};
+          attacks:d.attacks?d.attacks.map(Boolean):new Array(10).fill(false),
+          string_amplitude:d.string_amplitude||new Array(OM.length).fill(0)};
         var wNow=performance.now()/1000,wDt=wsLastT>0?Math.min(wNow-wsLastT,.05):.016;wsLastT=wNow;
         for(var i=0;i<OM.length;i++){
           if(f.attacks[i]){wsAmp[i]=wsAmp[i]<.1?1:Math.max(wsAmp[i],.6);atkFlash[i]=0.4}
@@ -659,6 +660,40 @@ function drawEnvelope(){
   x.globalAlpha=.3;x.fillStyle='#555';x.font='7px IBM Plex Mono';x.textAlign='right';x.fillText('ENV',t.w-4,h-2);
   x.globalAlpha=1;x.setTransform(1,0,0,1,0,0)}
 
+// ═══ DETECTOR — Goertzel energy bars with threshold lines ═══
+// Thresholds must match StringDetector defaults in string_detector.rs
+var DET_ONSET=0.02,DET_RELEASE=0.008,DET_SCALE=0.08;
+function drawDetector(){
+  var c=document.getElementById('detector');if(!c)return;
+  var w=c.clientWidth,h=c.clientHeight;
+  if(c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2}
+  var x=c.getContext('2d');x.setTransform(2,0,0,2,0,0);x.globalAlpha=1;x.clearRect(0,0,w,h);
+  var nS=OM.length,lW=36,bW=w-lW-8,rH=h/nS;
+  var amp=S.string_amplitude||new Array(nS).fill(0);
+  x.fillStyle='#06060e';x.fillRect(0,0,w,h);
+  var relX=lW+(DET_RELEASE/DET_SCALE)*bW,onsX=lW+(DET_ONSET/DET_SCALE)*bW;
+  for(var i=0;i<nS;i++){
+    var y=i*rH,col=SC[i%SC.length],act=S.string_active&&S.string_active[i];
+    // Background track
+    x.globalAlpha=0.1;x.fillStyle=col;x.fillRect(lW,y+1,bW,rH-2);
+    // Energy fill
+    var fw=Math.min(1,Math.max(0,(amp[i]||0)/DET_SCALE))*bW;
+    x.globalAlpha=act?0.85:0.35;x.fillStyle=col;x.fillRect(lW,y+1,fw,rH-2);
+    // Release threshold (orange)
+    x.globalAlpha=0.55;x.strokeStyle='#e67e22';x.lineWidth=1;
+    x.beginPath();x.moveTo(relX,y+1);x.lineTo(relX,y+rH-1);x.stroke();
+    // Onset threshold (green)
+    x.globalAlpha=0.75;x.strokeStyle='#2ecc71';x.lineWidth=1;
+    x.beginPath();x.moveTo(onsX,y+1);x.lineTo(onsX,y+rH-1);x.stroke();
+    // Label
+    x.globalAlpha=act?0.9:0.35;x.fillStyle=col;x.font='7px IBM Plex Mono';x.textAlign='right';
+    x.fillText(i+1,lW-3,y+rH/2+3)}
+  // Legend
+  x.globalAlpha=0.4;x.fillStyle='#e67e22';x.font='6px IBM Plex Mono';x.textAlign='left';x.fillText('rel',relX+2,h-2);
+  x.fillStyle='#2ecc71';x.fillText('on',onsX+2,h-2);
+  x.fillStyle='#555';x.textAlign='right';x.fillText('GOERTZEL',w-4,h-2);
+  x.globalAlpha=1;x.setTransform(1,0,0,1,0,0)}
+
 // ═══ TABLATURE — white background, matching staff notation ═══
 // Darker string colors for tab contrast on white
 var TC=['#b03030','#b06018','#8a7008','#1a9a40','#109878','#1a70b0','#1a5890','#703898','#6a2e80','#c01850'];
@@ -798,13 +833,13 @@ function mainLoop(now){
     if(pkt)pushFrame(coordProcess(pkt,dt))}
   updateAudio();pushCtrlHist();fc++;ft+=dt;
   if(ft>=.5){df=Math.round(fc/ft);fc=0;ft=0;document.getElementById('fps').textContent=df+'fps'}
-  drawInstrument();drawStaff();drawTab();drawEnvelope();drawRoll();
+  drawInstrument();drawStaff();drawTab();drawEnvelope();drawRoll();drawDetector();
   requestAnimationFrame(mainLoop)}
 
 var nS=OM.length,nP=PC.length,nL=LC.length;
 S={timestamp_us:0,pedals:new Array(nP).fill(0),knee_levers:new Array(nL).fill(0),volume:0,bar_position:null,
   bar_confidence:0,bar_source:'None',bar_sensors:new Array(SFP.length).fill(0),string_pitches_hz:cpd(null,new Array(nP).fill(0),new Array(nL).fill(0)),
-  string_active:new Array(nS).fill(false),attacks:new Array(nS).fill(false),string_amp:new Array(nS).fill(0)};
+  string_active:new Array(nS).fill(false),attacks:new Array(nS).fill(false),string_amp:new Array(nS).fill(0),string_amplitude:new Array(nS).fill(0)};
 
 // ═══ STARTUP ═══
 

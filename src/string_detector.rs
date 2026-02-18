@@ -34,10 +34,10 @@ pub struct StringDetector {
     energy: [f64; 10],
     /// Per-string active state
     pub active: [bool; 10],
-    /// Energy above this → string active
-    onset_threshold: f64,
-    /// Energy below this → string inactive (hysteresis)
-    release_threshold: f64,
+    /// Per-string onset thresholds — energy above this → string active
+    onset_threshold: [f64; 10],
+    /// Per-string release thresholds — energy below this → string inactive (hysteresis)
+    release_threshold: [f64; 10],
     /// Smoothing factor for energy tracking (0.0=instant, 0.99=very smooth)
     smoothing: f64,
     /// Audio ring buffer
@@ -57,8 +57,8 @@ impl StringDetector {
         Self {
             energy: [0.0; 10],
             active: [false; 10],
-            onset_threshold: 0.02,
-            release_threshold: 0.008,
+            onset_threshold: [0.02; 10],
+            release_threshold: [0.008; 10],
             smoothing: 0.6,
             audio_buf: Vec::with_capacity(8192),
             analysis_window: 4096, // ~85ms at 48kHz — resolves B2 (123Hz, ~8ms period)
@@ -66,6 +66,13 @@ impl StringDetector {
             analysis_interval: 2048, // run every ~42ms
             sample_rate: 48000,
         }
+    }
+
+    /// Override per-string detection thresholds (e.g., loaded from calibration.json).
+    pub fn with_thresholds(mut self, onset: [f64; 10], release: [f64; 10]) -> Self {
+        self.onset_threshold = onset;
+        self.release_threshold = release;
+        self
     }
 
     /// Push new audio samples into the internal buffer.
@@ -169,15 +176,15 @@ impl StringDetector {
             self.energy[si] = self.energy[si] * self.smoothing
                 + normalized * (1.0 - self.smoothing);
 
-            // Threshold with hysteresis
+            // Threshold with hysteresis (per-string calibrated values)
             if self.active[si] {
                 // Currently active — need to drop below release threshold
-                if self.energy[si] < self.release_threshold {
+                if self.energy[si] < self.release_threshold[si] {
                     self.active[si] = false;
                 }
             } else {
                 // Currently inactive — need to rise above onset threshold
-                if self.energy[si] > self.onset_threshold {
+                if self.energy[si] > self.onset_threshold[si] {
                     self.active[si] = true;
                     attacks[si] = true;
                 }
@@ -217,7 +224,7 @@ impl StringDetector {
 }
 
 /// Goertzel algorithm: compute magnitude of a single frequency bin.
-fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) -> f64 {
+pub(crate) fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) -> f64 {
     let k = (freq * n as f64 / sample_rate).round();
     let w = 2.0 * std::f64::consts::PI * k / n as f64;
     let coeff = 2.0 * w.cos();

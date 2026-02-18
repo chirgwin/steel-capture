@@ -1,5 +1,10 @@
+use steel_capture::calibration::Calibration;
+#[cfg(feature = "calibration")]
+use steel_capture::calibrator::Calibrator;
 use steel_capture::coordinator;
 use steel_capture::copedant::buddy_emmons_e9;
+#[cfg(feature = "calibration")]
+use steel_capture::copedant::CopedantEngine;
 use steel_capture::simulator;
 use steel_capture::types::*;
 use steel_capture::wav_player;
@@ -94,6 +99,56 @@ struct Cli {
     /// pedal/lever/bar ground truth. WAV must be mono or stereo; 48kHz recommended.
     #[arg(long)]
     audio_file: Option<PathBuf>,
+
+    /// Run interactive per-string calibration and write calibration.json.
+    /// Requires: --features calibration (or --features audio for WAV-only).
+    #[cfg(feature = "calibration")]
+    #[arg(long)]
+    calibrate: bool,
+
+    /// Path to the calibration JSON file.
+    /// Loaded automatically at startup if present; written by --calibrate.
+    #[arg(long, default_value = "calibration.json")]
+    calibration_file: PathBuf,
+}
+
+#[cfg(feature = "calibration")]
+fn run_calibration(cli: &Cli, clock: &SessionClock, copedant: Copedant) {
+    let (cal_tx, cal_rx) = crossbeam_channel::unbounded::<InputEvent>();
+    let engine = CopedantEngine::new(copedant);
+    let cal_file = cli.calibration_file.clone();
+
+    if let Some(path) = cli.audio_file.clone() {
+        let wav_tx = cal_tx;
+        let wav_clock = clock.clone();
+        thread::Builder::new()
+            .name("cal-wav".into())
+            .spawn(move || wav_player::WavPlayer::new(path, wav_tx, wav_clock).run())
+            .unwrap();
+
+        let cal = Calibrator::new(cal_rx, engine).run();
+        finish_calibration(cal, &cal_file);
+    } else {
+        use steel_capture::audio_input::AudioCapture;
+        let _capture = match AudioCapture::start(cal_tx, clock.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Audio capture failed: {}", e);
+                error!("Check that an audio input device is connected and accessible.");
+                std::process::exit(1);
+            }
+        };
+        let cal = Calibrator::new(cal_rx, engine).run();
+        finish_calibration(cal, &cal_file);
+    }
+}
+
+#[cfg(feature = "calibration")]
+fn finish_calibration(cal: steel_capture::calibration::Calibration, path: &std::path::Path) {
+    match cal.save(path) {
+        Ok(_) => println!("Saved to {:?}", path),
+        Err(e) => error!("Failed to save calibration: {}", e),
+    }
 }
 
 fn main() {
@@ -106,6 +161,19 @@ fn main() {
     let cli = Cli::parse();
     let copedant = buddy_emmons_e9();
     let clock = SessionClock::new();
+
+    // ─── Calibration mode (--features calibration) ────────────────
+    #[cfg(feature = "calibration")]
+    if cli.calibrate {
+        run_calibration(&cli, &clock, copedant.clone());
+        return;
+    }
+
+    // ─── Load calibration if present ────────────────────────────────
+    let calibration = Calibration::load(&cli.calibration_file);
+    if calibration.is_some() {
+        info!("Per-string calibration loaded from {:?}", cli.calibration_file);
+    }
 
     let gui_enabled = cfg!(feature = "gui") && !cli.no_gui;
 
@@ -197,9 +265,14 @@ fn main() {
     let audio_tx = if cli.log_data { Some(audio_log_tx) } else { None };
     // Audio detection is on when: hardware mode, --detect-strings, or a WAV file is provided.
     let use_audio_detect = cli.detect_strings || !cli.simulate || cli.audio_file.is_some();
+    let cal_onset = calibration.as_ref().map(|c| c.onset_thresholds());
+    let cal_release = calibration.as_ref().map(|c| c.release_thresholds());
     handles.push(thread::Builder::new().name("coordinator".into()).spawn(move || {
         let mut coord = coordinator::Coordinator::new(input_rx, frame_txs, audio_tx, cop2)
             .with_audio_detection(use_audio_detect);
+        if let (Some(onset), Some(release)) = (cal_onset, cal_release) {
+            coord = coord.with_string_thresholds(onset, release);
+        }
         coord.run();
     }).unwrap());
 

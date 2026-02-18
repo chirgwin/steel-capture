@@ -57,6 +57,12 @@ impl Coordinator {
         self
     }
 
+    /// Apply per-string calibrated thresholds to the string detector.
+    pub fn with_string_thresholds(mut self, onset: [f64; 10], release: [f64; 10]) -> Self {
+        self.string_detector = self.string_detector.with_thresholds(onset, release);
+        self
+    }
+
     pub fn run(&mut self) {
         info!("Coordinator running (audio string detection: {})",
               if self.use_audio_detection { "ON" } else { "OFF (simulator ground truth)" });
