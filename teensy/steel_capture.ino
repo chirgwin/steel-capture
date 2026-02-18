@@ -1,22 +1,22 @@
 /*
  * Steel Capture — Teensy 4.1 Firmware
  *
- * Reads 9 analog channels at 1kHz and sends binary frames over USB serial.
+ * Reads 13 analog channels at 1kHz and sends binary frames over USB serial.
  *
- * Channel mapping:
- *   A0:  Pedal A (pot)
- *   A1:  Pedal B (pot)
- *   A2:  Pedal C (pot)
- *   A3:  Knee lever LKL (pot)
- *   A4:  Knee lever LKR (pot)
- *   A5:  Knee lever LKV (pot)
- *   A6:  Knee lever RKL (pot)
- *   A7:  Knee lever RKR (pot)
- *   A8:  Volume pedal (pot, tapped)
- *   A9:  Bar SS49E fret 0
- *   A10: Bar SS49E fret 5
- *   A11: Bar SS49E fret 10
- *   A12: Bar SS49E fret 15
+ * Channel mapping (all SS49E hall sensors + neodymium magnets):
+ *   A0:  Pedal A
+ *   A1:  Pedal B
+ *   A2:  Pedal C
+ *   A3:  Knee lever LKL
+ *   A4:  Knee lever LKR
+ *   A5:  Knee lever LKV
+ *   A6:  Knee lever RKL
+ *   A7:  Knee lever RKR
+ *   A8:  Volume pedal
+ *   A9:  Bar fret 0
+ *   A10: Bar fret 5
+ *   A11: Bar fret 10
+ *   A12: Bar fret 15
  *
  * Binary protocol (34 bytes per frame):
  *   [0:2]   Sync word (0xBEEF, little-endian)
@@ -86,16 +86,16 @@ void pack_frame(uint32_t timestamp, const uint16_t* adc, uint8_t* buf) {
     buf[4] = (timestamp >> 16) & 0xFF;
     buf[5] = (timestamp >> 24) & 0xFF;
 
-    // ADC values (little-endian u16 × 9)
+    // ADC values (little-endian u16 × 13)
     for (int i = 0; i < NUM_CHANNELS; i++) {
         buf[6 + i*2] = adc[i] & 0xFF;
         buf[6 + i*2 + 1] = (adc[i] >> 8) & 0xFF;
     }
 
-    // CRC-16 over first 24 bytes
+    // CRC-16 over first 32 bytes (FRAME_SIZE - 2)
     uint16_t crc = crc16(buf, FRAME_SIZE - 2);
-    buf[24] = crc & 0xFF;
-    buf[25] = (crc >> 8) & 0xFF;
+    buf[FRAME_SIZE - 2] = crc & 0xFF;
+    buf[FRAME_SIZE - 1] = (crc >> 8) & 0xFF;
 }
 
 // ─── Setup ──────────────────────────────────────────────────────────────────

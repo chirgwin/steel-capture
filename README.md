@@ -160,10 +160,10 @@ Because bar position + copedant state tells us the exact Hz of every string, we 
 
 ## Hardware (when ready)
 
-See `HARDWARE.md` for the shopping list (~$90). Key components:
-- Teensy 4.1 ($31.50) — 9 analog inputs at 1kHz
-- 10x SS49E hall sensors ($10) — pedals, levers, volume, bar position
-- Neodymium magnets ($8) — attach to pedal bars and bar tip
+See `HARDWARE.md` for the full plan (~$65). Key components:
+- Teensy 4.1 ($31.50) — 13 analog inputs at 1kHz
+- 13× SS49E hall sensors + neodymium magnets — one per channel
+- String detection via software (Goertzel spectral matching, no hardware needed)
 - Firmware: `teensy/steel_capture.ino`
 
 ## OSC Address Map
