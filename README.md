@@ -4,6 +4,10 @@ Pedal steel guitar expression capture system. Captures pedal/lever/volume state,
 
 **Zero instrument modification.** All sensors attach via velcro, tape, or putty.
 
+> **Status:** Software-only at the moment. The full capture pipeline, simulator, and browser visualization are working. Hardware (Teensy + hall sensors) is still in the experimenting and planning phase.
+
+![Browser visualization showing fretboard, pedals, staff notation, tablature, and piano roll during a simulated improvisation](assets/screenshot.png)
+
 ## Quick Start (Simulator — No Hardware Needed)
 
 ```bash
@@ -27,8 +31,9 @@ The simulator runs a ~15-second demo sequence exercising pedals, knee levers, ba
 | Command | What you get |
 |---------|-------------|
 | `cargo build --no-default-features` | Headless (no GUI). Console, WebSocket, OSC, logging. |
-| `cargo build` | Native GUI (egui) + everything above. Requires OpenGL. |
+| `cargo build` | Native GUI (wry/tao WebView) + everything above. |
 | `cargo build --features hardware` | + Serial port support for Teensy 4.1 |
+| `cargo build --no-default-features --features calibration` | + Interactive calibration mode (requires cpal) |
 
 ## Run Modes
 
@@ -61,26 +66,27 @@ cargo run --release --features hardware -- --port /dev/ttyACM0 --ws --detect-str
 ## Tests
 
 ```bash
-# Run all tests (46 total: 35 unit + 11 integration)
+# Run all tests (47 total: 36 unit + 11 integration)
 cargo test --no-default-features
+
+# With calibration feature (51 tests)
+cargo test --no-default-features --features calibration
 
 # Just unit tests
 cargo test --no-default-features --lib
 
 # Just integration tests
 cargo test --no-default-features --test integration
-
-# Specific test
-cargo test --no-default-features test_pipeline_attacks_on_string_onset
 ```
 
 ### Test Coverage
 
-**Unit tests (35):**
-- `bar_inference` (5): Goertzel frequency detection, sensor-only during silence, fused sensor+audio, pedal interaction, bar lift
+**Unit tests (36):**
+- `copedant` (14): MIDI/Hz conversion, open strings, all pedals (A/B/C), all levers (LKL/LKR/LKV/RKL/RKR), partial engagement, combinations (A+C), two-stop lever (RKR soft/hard)
 - `bar_sensor` (8): Hall sensor readings at various frets, interpolation accuracy, smoothing, edge cases
-- `copedant` (13): MIDI/Hz conversion, open strings, all pedals (A/B/C), all levers (LKL/LKR/LKV/RKL/RKR), partial engagement, combinations (A+C), two-stop lever (RKR soft/hard)
 - `string_detector` (7): Single string detection, 3-string grip, pedal interaction, silence, no-bar, attack-only-on-onset, release-then-reattack
+- `bar_inference` (6): Goertzel frequency detection, sensor-only during silence, fused sensor+audio, pedal interaction, bar lift, silence+no-bar
+- `calibration` (1): Config roundtrip
 
 **Integration tests (11):**
 - Pipeline: basic grip, pedal pitch shift, attack timing, pedal-triggered attacks, silence/no-bar, volume independence
@@ -88,6 +94,8 @@ cargo test --no-default-features test_pipeline_attacks_on_string_onset
 - Per-string spectral resolution
 - Bar sensor to inference pipeline across frets 0-15
 - CaptureFrame JSON serialization round-trip (frontend contract)
+
+**With `calibration` feature (+4):** threshold computation, overlap handling, noisy-signal floor
 
 ## Architecture
 
@@ -126,7 +134,8 @@ cargo test --no-default-features test_pipeline_attacks_on_string_onset
 | `osc_sender.rs` | UDP OSC output for DAWs and synthesis environments |
 | `data_logger.rs` | Session recording (JSONL frames + raw audio) |
 | `console_display.rs` | ASCII terminal dashboard |
-| `gui.rs` | Native egui window (optional) |
+| `webview_app.rs` | Native WebView GUI via wry/tao (loads the browser viz) |
+| `calibrator.rs` | Interactive per-string calibration from live audio |
 
 ### Bar Position Inference
 
