@@ -4,7 +4,7 @@
 
 A pedal steel guitar expression capture system. Records every aspect of a performance — pedal/lever/volume positions, bar position, which strings are sounding — and streams it all in real time to a browser visualization, OSC (for Csound/SuperCollider), and session logs. Built in Rust. Zero instrument modification.
 
-The owner is Geoff, a composer with deep experience in Csound, Dorico, audio synthesis, and Rust. He plays pedal steel and wants to capture performances for notation, resynthesis, and analysis.
+The owner is Geoff, a composer and musician. He plays pedal steel and wants to capture performances for notation, resynthesis, and analysis.
 
 ## Commands
 
@@ -104,7 +104,6 @@ RKR is a two-stop lever: soft stop at ~50% engagement, hard stop at 100%. Modele
 - OSC, logging, console display all functional
 
 **Needs work / next steps:**
-- Real audio input via `cpal` (feature flag exists, module not yet implemented)
 - Hardware assembly and calibration
 - Threshold tuning with real steel string audio (synthetic sines ≠ real harmonics/noise)
 - Fast picking resolution testing (42ms window may miss rapid rolls)
@@ -114,7 +113,7 @@ RKR is a two-stop lever: soft stop at ~50% engagement, hard stop at 100%. Modele
 
 ## Style Notes
 
-- Geoff knows Rust, audio DSP, and music theory deeply. Don't over-explain fundamentals.
+- Geoff knows music theory. Don't over-explain fundamentals.
 - He prefers concise, direct communication. No filler.
 - Code should compile with zero warnings. Run `cargo test --no-default-features` after changes.
 - The project uses `log` + `env_logger`. Use `trace!` for high-frequency diagnostics, `debug!` for periodic stats, `info!` for lifecycle events.
