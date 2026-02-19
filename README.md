@@ -250,12 +250,12 @@ The browser visualization accepts both compact and verbose keys for backward com
 `--log-data` writes JSONL (one JSON object per line):
 
 ```
-{"format":"steel-capture-v2","copedant":"Buddy Emmons E9","rate_hz":60}
+{"format":"steel-capture","rate_hz":60,"copedant":{...},"channels":[...]}
 {"t":16667,"p":[0.0,0.0,0.0],"kl":[0.0,0.0,0.0,0.0,0.0],"v":0.7,...}
 {"t":33333,"p":[0.0,0.0,0.0],...}
 ```
 
-First line is a header with format version, copedant name, and sample rate. Each subsequent line is a CompactFrame. The visualization can load `.jsonl` files directly via the "Load File" button.
+First line is a self-describing header with copedant, channel definitions, and sample rate. Each subsequent line is a CompactFrame. The visualization can load `.jsonl` files directly via the "Load File" button.
 
 ## CLI Reference
 

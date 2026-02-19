@@ -605,3 +605,490 @@ fn test_ws_json_serialization() {
     assert_eq!(back.string_active[2], true);
     assert_eq!(back.attacks[2], true);
 }
+
+// ─── JSONL format tests ─────────────────────────────────────────────────────
+
+/// Build a CaptureFrame with specific values for JSONL tests.
+fn mock_capture_frame(timestamp_us: u64, bar_fret: Option<f32>, volume: f32) -> CaptureFrame {
+    CaptureFrame {
+        timestamp_us,
+        pedals: [0.0, 0.0, 0.0],
+        knee_levers: [0.0; 5],
+        volume,
+        bar_sensors: [0.0; 4],
+        bar_position: bar_fret,
+        bar_confidence: if bar_fret.is_some() { 0.9 } else { 0.0 },
+        bar_source: if bar_fret.is_some() {
+            BarSource::Sensor
+        } else {
+            BarSource::None
+        },
+        string_pitches_hz: [0.0; 10],
+        string_active: [false; 10],
+        attacks: [false; 10],
+        string_amplitude: [0.0; 10],
+    }
+}
+
+#[test]
+fn test_jsonl_header_format() {
+    // Verify JSONL header line matches what data_logger writes
+    let header = serde_json::json!({
+        "format": "steel-capture",
+        "copedant": "Buddy Emmons E9",
+        "rate_hz": 60,
+    });
+    let line = serde_json::to_string(&header).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(parsed["format"], "steel-capture");
+    assert_eq!(parsed["copedant"], "Buddy Emmons E9");
+    assert_eq!(parsed["rate_hz"], 60);
+}
+
+#[test]
+fn test_jsonl_multi_frame_stream() {
+    // Simulate a JSONL stream: header + N compact frames
+    let header = serde_json::json!({
+        "format": "steel-capture",
+        "copedant": "Buddy Emmons E9",
+        "rate_hz": 60,
+    });
+
+    let frames: Vec<CaptureFrame> = (0..5)
+        .map(|i| {
+            let mut f = mock_capture_frame(i * 16667, Some(3.0 + i as f32), 0.7);
+            if i == 2 {
+                f.string_active[3] = true;
+                f.attacks[3] = true;
+                f.string_amplitude[3] = 0.85;
+            }
+            f
+        })
+        .collect();
+
+    // Write JSONL to string (same as data_logger)
+    let mut jsonl = String::new();
+    jsonl.push_str(&serde_json::to_string(&header).unwrap());
+    jsonl.push('\n');
+    for frame in &frames {
+        let compact = CompactFrame::from(frame);
+        jsonl.push_str(&serde_json::to_string(&compact).unwrap());
+        jsonl.push('\n');
+    }
+
+    // Parse back (same logic as viz.js parseJSONL)
+    let lines: Vec<&str> = jsonl.lines().filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines.len(), 6, "header + 5 frames");
+
+    let parsed_header: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    assert_eq!(parsed_header["format"], "steel-capture");
+
+    for (i, &line) in lines[1..].iter().enumerate() {
+        let compact: CompactFrame = serde_json::from_str(line).unwrap();
+        let back: CaptureFrame = compact.into();
+        assert_eq!(back.timestamp_us, frames[i].timestamp_us);
+        assert_eq!(back.bar_position, frames[i].bar_position);
+        assert_eq!(back.volume, frames[i].volume);
+        assert_eq!(back.string_active, frames[i].string_active);
+        assert_eq!(back.attacks, frames[i].attacks);
+    }
+}
+
+#[test]
+fn test_jsonl_compact_preserves_all_fields() {
+    // Verify every field survives the CaptureFrame → CompactFrame → JSON → CompactFrame → CaptureFrame round-trip
+    let frame = CaptureFrame {
+        timestamp_us: 999999,
+        pedals: [0.1, 0.5, 0.9],
+        knee_levers: [0.2, 0.4, 0.6, 0.8, 1.0],
+        volume: 0.75,
+        bar_sensors: [0.3, 0.7, 0.1, 0.0],
+        bar_position: Some(7.5),
+        bar_confidence: 0.88,
+        bar_source: BarSource::Fused,
+        string_pitches_hz: [
+            370.0, 311.0, 415.0, 329.0, 247.0, 207.0, 185.0, 164.0, 147.0, 123.0,
+        ],
+        string_active: [
+            true, false, true, true, false, false, true, false, false, true,
+        ],
+        attacks: [
+            true, false, false, true, false, false, false, false, false, false,
+        ],
+        string_amplitude: [0.9, 0.0, 0.7, 0.8, 0.0, 0.0, 0.5, 0.0, 0.0, 0.3],
+    };
+
+    let compact = CompactFrame::from(&frame);
+    let json = serde_json::to_string(&compact).unwrap();
+    let decoded: CompactFrame = serde_json::from_str(&json).unwrap();
+    let back: CaptureFrame = decoded.into();
+
+    assert_eq!(back.timestamp_us, frame.timestamp_us);
+    assert_eq!(back.pedals, frame.pedals);
+    assert_eq!(back.knee_levers, frame.knee_levers);
+    assert_eq!(back.volume, frame.volume);
+    assert_eq!(back.bar_sensors, frame.bar_sensors);
+    assert_eq!(back.bar_position, frame.bar_position);
+    assert_eq!(back.bar_confidence, frame.bar_confidence);
+    assert_eq!(back.bar_source, frame.bar_source);
+    assert_eq!(back.string_pitches_hz, frame.string_pitches_hz);
+    assert_eq!(back.string_active, frame.string_active);
+    assert_eq!(back.attacks, frame.attacks);
+    assert_eq!(back.string_amplitude, frame.string_amplitude);
+}
+
+#[test]
+fn test_jsonl_compact_null_bar() {
+    // bar_position: None must serialize as null and round-trip correctly
+    let frame = mock_capture_frame(0, None, 0.5);
+    let compact = CompactFrame::from(&frame);
+    let json = serde_json::to_string(&compact).unwrap();
+    assert!(
+        json.contains("\"bp\":null"),
+        "None should serialize as null"
+    );
+
+    let decoded: CompactFrame = serde_json::from_str(&json).unwrap();
+    let back: CaptureFrame = decoded.into();
+    assert_eq!(back.bar_position, None);
+    assert_eq!(back.bar_source, BarSource::None);
+}
+
+#[test]
+fn test_jsonl_compact_bar_source_variants() {
+    // All BarSource variants must survive serialization
+    for (source, expected_str) in [
+        (BarSource::None, "\"None\""),
+        (BarSource::Sensor, "\"Sensor\""),
+        (BarSource::Audio, "\"Audio\""),
+        (BarSource::Fused, "\"Fused\""),
+    ] {
+        let mut frame = mock_capture_frame(0, Some(3.0), 0.7);
+        frame.bar_source = source;
+        let compact = CompactFrame::from(&frame);
+        let json = serde_json::to_string(&compact).unwrap();
+        assert!(
+            json.contains(&format!("\"bx\":{}", expected_str)),
+            "BarSource::{:?} should serialize as {}",
+            source,
+            expected_str
+        );
+        let back: CaptureFrame = serde_json::from_str::<CompactFrame>(&json).unwrap().into();
+        assert_eq!(back.bar_source, source);
+    }
+}
+
+// ─── JSONL self-describing header tests ──────────────────────────────────────
+
+#[test]
+fn test_jsonl_header_has_channel_definitions() {
+    // Verify the header contains a self-describing parameter table
+    use steel_capture::copedant::buddy_emmons_e9;
+
+    let copedant = buddy_emmons_e9();
+    // Build the same header that data_logger produces
+    let header = serde_json::json!({
+        "format": "steel-capture",
+        "rate_hz": 60,
+        "copedant": {
+            "name": copedant.name,
+            "open_strings_midi": copedant.open_strings,
+            "pedals": copedant.pedals.iter().map(|p| {
+                serde_json::json!({"name": p.name, "changes": p.changes.iter().map(|(s, d)| {
+                    serde_json::json!({"string": s, "semitones": d})
+                }).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>(),
+            "levers": copedant.levers.iter().map(|l| {
+                serde_json::json!({"name": l.name, "changes": l.changes.iter().map(|(s, d)| {
+                    serde_json::json!({"string": s, "semitones": d})
+                }).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>(),
+        },
+        "channels": [
+            {"key": "t",  "name": "timestamp_us",      "type": "u64",    "unit": "microseconds"},
+            {"key": "p",  "name": "pedals",             "type": "f32[]",  "count": 3,  "range": [0, 1], "unit": "engagement"},
+            {"key": "kl", "name": "knee_levers",        "type": "f32[]",  "count": 5,  "range": [0, 1], "unit": "engagement"},
+            {"key": "v",  "name": "volume",             "type": "f32",    "range": [0, 1], "unit": "engagement"},
+            {"key": "bs", "name": "bar_sensors",        "type": "f32[]",  "count": 4,  "range": [0, 1], "unit": "hall_normalized"},
+            {"key": "bp", "name": "bar_position",       "type": "f32?",   "range": [0, 24], "unit": "frets", "null_meaning": "bar lifted"},
+            {"key": "bc", "name": "bar_confidence",     "type": "f32",    "range": [0, 1]},
+            {"key": "bx", "name": "bar_source",         "type": "enum",   "values": ["None", "Sensor", "Audio", "Fused"]},
+            {"key": "hz", "name": "string_pitches_hz",  "type": "f64[]",  "count": 10, "unit": "Hz"},
+            {"key": "sa", "name": "string_active",      "type": "bool[]", "count": 10},
+            {"key": "at", "name": "attacks",            "type": "bool[]", "count": 10},
+            {"key": "am", "name": "string_amplitude",   "type": "f32[]",  "count": 10, "range": [0, 1]},
+        ],
+    });
+
+    let header_str = serde_json::to_string(&header).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&header_str).unwrap();
+
+    // Format identifier
+    assert_eq!(parsed["format"], "steel-capture");
+    assert_eq!(parsed["rate_hz"], 60);
+
+    // Channel definitions are self-describing
+    let channels = parsed["channels"].as_array().unwrap();
+    assert_eq!(channels.len(), 12, "12 parameter channels defined");
+
+    // Verify each channel has at minimum key, name, type
+    for ch in channels {
+        assert!(ch["key"].is_string(), "channel missing 'key'");
+        assert!(ch["name"].is_string(), "channel missing 'name'");
+        assert!(ch["type"].is_string(), "channel missing 'type'");
+    }
+
+    // Spot-check specific channels
+    assert_eq!(channels[0]["key"], "t");
+    assert_eq!(channels[0]["unit"], "microseconds");
+    assert_eq!(channels[5]["key"], "bp");
+    assert_eq!(channels[5]["unit"], "frets");
+    assert_eq!(channels[5]["null_meaning"], "bar lifted");
+    assert_eq!(channels[7]["key"], "bx");
+    assert_eq!(channels[7]["values"].as_array().unwrap().len(), 4);
+}
+
+#[test]
+fn test_jsonl_header_copedant_embedded() {
+    // Verify the header embeds full copedant info for downstream interpretation
+    use steel_capture::copedant::buddy_emmons_e9;
+
+    let copedant = buddy_emmons_e9();
+    let header = serde_json::json!({
+        "format": "steel-capture",
+        "rate_hz": 60,
+        "copedant": {
+            "name": copedant.name,
+            "open_strings_midi": copedant.open_strings,
+            "pedals": copedant.pedals.iter().map(|p| {
+                serde_json::json!({"name": p.name})
+            }).collect::<Vec<_>>(),
+            "levers": copedant.levers.iter().map(|l| {
+                serde_json::json!({"name": l.name})
+            }).collect::<Vec<_>>(),
+        },
+    });
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&serde_json::to_string(&header).unwrap()).unwrap();
+
+    let cop = &parsed["copedant"];
+    assert_eq!(cop["name"], "Buddy Emmons E9");
+
+    // Open strings are MIDI note numbers
+    let strings = cop["open_strings_midi"].as_array().unwrap();
+    assert_eq!(strings.len(), 10);
+    assert_eq!(strings[0], 66.0); // F#4
+    assert_eq!(strings[4], 59.0); // B3
+    assert_eq!(strings[9], 47.0); // B2
+
+    // Pedal and lever names
+    let pedals = cop["pedals"].as_array().unwrap();
+    assert_eq!(pedals.len(), 3);
+    assert_eq!(pedals[0]["name"], "A");
+    assert_eq!(pedals[2]["name"], "C");
+
+    let levers = cop["levers"].as_array().unwrap();
+    assert_eq!(levers.len(), 5);
+    assert_eq!(levers[0]["name"], "LKL");
+    assert_eq!(levers[4]["name"], "RKR");
+}
+
+#[test]
+fn test_jsonl_input_end_to_end() {
+    // Simulate a complete JSONL file as data_logger would write it,
+    // then parse it back as a consumer (viz.js / analysis tool) would.
+    use steel_capture::copedant::buddy_emmons_e9;
+
+    let copedant = buddy_emmons_e9();
+
+    // Build the real header (same code path as data_logger)
+    let header = serde_json::json!({
+        "format": "steel-capture",
+        "rate_hz": 60,
+        "copedant": {
+            "name": copedant.name,
+            "open_strings_midi": copedant.open_strings,
+            "pedals": copedant.pedals.iter().map(|p| {
+                serde_json::json!({"name": p.name, "changes": p.changes.iter().map(|(s, d)| {
+                    serde_json::json!({"string": s, "semitones": d})
+                }).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>(),
+            "levers": copedant.levers.iter().map(|l| {
+                serde_json::json!({"name": l.name, "changes": l.changes.iter().map(|(s, d)| {
+                    serde_json::json!({"string": s, "semitones": d})
+                }).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>(),
+        },
+        "channels": [
+            {"key": "t",  "name": "timestamp_us",      "type": "u64",    "unit": "microseconds"},
+            {"key": "p",  "name": "pedals",             "type": "f32[]",  "count": 3,  "range": [0, 1], "unit": "engagement"},
+            {"key": "kl", "name": "knee_levers",        "type": "f32[]",  "count": 5,  "range": [0, 1], "unit": "engagement"},
+            {"key": "v",  "name": "volume",             "type": "f32",    "range": [0, 1], "unit": "engagement"},
+            {"key": "bs", "name": "bar_sensors",        "type": "f32[]",  "count": 4,  "range": [0, 1], "unit": "hall_normalized"},
+            {"key": "bp", "name": "bar_position",       "type": "f32?",   "range": [0, 24], "unit": "frets", "null_meaning": "bar lifted"},
+            {"key": "bc", "name": "bar_confidence",     "type": "f32",    "range": [0, 1]},
+            {"key": "bx", "name": "bar_source",         "type": "enum",   "values": ["None", "Sensor", "Audio", "Fused"]},
+            {"key": "hz", "name": "string_pitches_hz",  "type": "f64[]",  "count": 10, "unit": "Hz"},
+            {"key": "sa", "name": "string_active",      "type": "bool[]", "count": 10},
+            {"key": "at", "name": "attacks",            "type": "bool[]", "count": 10},
+            {"key": "am", "name": "string_amplitude",   "type": "f32[]",  "count": 10, "range": [0, 1]},
+        ],
+    });
+
+    // Build diverse frames: silence, active strings, bar slide, pedal engaged
+    let source_frames = vec![
+        CaptureFrame {
+            timestamp_us: 0,
+            pedals: [0.0; 3],
+            knee_levers: [0.0; 5],
+            volume: 0.7,
+            bar_sensors: [0.0; 4],
+            bar_position: None,
+            bar_confidence: 0.0,
+            bar_source: BarSource::None,
+            string_pitches_hz: [0.0; 10],
+            string_active: [false; 10],
+            attacks: [false; 10],
+            string_amplitude: [0.0; 10],
+        },
+        CaptureFrame {
+            timestamp_us: 16667,
+            pedals: [0.8, 0.0, 0.0],
+            knee_levers: [0.0, 0.6, 0.0, 0.0, 0.0],
+            volume: 0.9,
+            bar_sensors: [0.9, 0.3, 0.05, 0.0],
+            bar_position: Some(3.0),
+            bar_confidence: 0.92,
+            bar_source: BarSource::Fused,
+            string_pitches_hz: [
+                392.0, 329.6, 440.0, 349.2, 261.6, 220.0, 196.0, 174.6, 155.6, 130.8,
+            ],
+            string_active: [
+                false, false, true, true, true, false, false, false, false, false,
+            ],
+            attacks: [
+                false, false, true, true, true, false, false, false, false, false,
+            ],
+            string_amplitude: [0.0, 0.0, 0.85, 0.9, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
+        },
+        CaptureFrame {
+            timestamp_us: 33333,
+            pedals: [0.8, 0.0, 0.0],
+            knee_levers: [0.0, 0.6, 0.0, 0.0, 0.0],
+            volume: 0.85,
+            bar_sensors: [0.7, 0.5, 0.1, 0.0],
+            bar_position: Some(5.0),
+            bar_confidence: 0.88,
+            bar_source: BarSource::Sensor,
+            string_pitches_hz: [
+                415.3, 349.2, 466.2, 370.0, 277.2, 233.1, 207.7, 185.0, 164.8, 138.6,
+            ],
+            string_active: [
+                false, false, true, true, true, false, false, false, false, false,
+            ],
+            attacks: [false; 10],
+            string_amplitude: [0.0, 0.0, 0.6, 0.65, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
+        },
+    ];
+
+    // Write JSONL (header + compact frames)
+    let mut jsonl = serde_json::to_string(&header).unwrap();
+    jsonl.push('\n');
+    for frame in &source_frames {
+        jsonl.push_str(&serde_json::to_string(&CompactFrame::from(frame)).unwrap());
+        jsonl.push('\n');
+    }
+
+    // ── Parse back as a consumer would ──
+
+    let lines: Vec<&str> = jsonl.lines().filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines.len(), 4); // header + 3 frames
+
+    // Parse header, extract channel definitions
+    let hdr: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    assert_eq!(hdr["format"], "steel-capture");
+    let rate = hdr["rate_hz"].as_u64().unwrap();
+    assert_eq!(rate, 60);
+
+    let channels = hdr["channels"].as_array().unwrap();
+    // Build a key→channel_def lookup (what a generic consumer would do)
+    let channel_keys: Vec<&str> = channels
+        .iter()
+        .map(|c| c["key"].as_str().unwrap())
+        .collect();
+    assert!(channel_keys.contains(&"t"));
+    assert!(channel_keys.contains(&"bp"));
+    assert!(channel_keys.contains(&"hz"));
+
+    // Parse copedant from header
+    let cop = &hdr["copedant"];
+    let open_strings: Vec<f64> = cop["open_strings_midi"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    assert_eq!(open_strings.len(), 10);
+    assert!((open_strings[0] - 66.0).abs() < 0.01); // F#4
+
+    // Parse each frame line and validate against header-declared ranges
+    let mut parsed_frames: Vec<CaptureFrame> = Vec::new();
+    for &line in &lines[1..] {
+        let compact: CompactFrame = serde_json::from_str(line).unwrap();
+        let frame: CaptureFrame = compact.into();
+
+        // Validate ranges declared in header
+        for &p in &frame.pedals {
+            assert!((0.0..=1.0).contains(&p));
+        }
+        for &kl in &frame.knee_levers {
+            assert!((0.0..=1.0).contains(&kl));
+        }
+        assert!((0.0..=1.0).contains(&frame.volume));
+        for &bs in &frame.bar_sensors {
+            assert!((0.0..=1.0).contains(&bs));
+        }
+        if let Some(bp) = frame.bar_position {
+            assert!((0.0..=24.0).contains(&bp));
+        }
+        assert!((0.0..=1.0).contains(&frame.bar_confidence));
+        for &am in &frame.string_amplitude {
+            assert!((0.0..=1.0).contains(&am));
+        }
+
+        parsed_frames.push(frame);
+    }
+
+    assert_eq!(parsed_frames.len(), 3);
+
+    // Frame 0: silence
+    assert_eq!(parsed_frames[0].bar_position, None);
+    assert_eq!(parsed_frames[0].bar_source, BarSource::None);
+    assert!(parsed_frames[0].string_active.iter().all(|&a| !a));
+
+    // Frame 1: attack at fret 3, pedal A engaged, strings 2-4 active
+    assert_eq!(parsed_frames[1].bar_position, Some(3.0));
+    assert_eq!(parsed_frames[1].bar_source, BarSource::Fused);
+    assert!((parsed_frames[1].pedals[0] - 0.8).abs() < 0.01);
+    assert!(parsed_frames[1].string_active[2]);
+    assert!(parsed_frames[1].attacks[2]);
+    assert!((parsed_frames[1].string_amplitude[2] - 0.85).abs() < 0.01);
+
+    // Frame 2: bar slid to fret 5, same strings active, no new attacks
+    assert_eq!(parsed_frames[2].bar_position, Some(5.0));
+    assert_eq!(parsed_frames[2].bar_source, BarSource::Sensor);
+    assert!(parsed_frames[2].string_active[2]);
+    assert!(
+        !parsed_frames[2].attacks[2],
+        "no new attack on sustained string"
+    );
+    assert!(
+        parsed_frames[2].string_amplitude[2] < parsed_frames[1].string_amplitude[2],
+        "amplitude decays after attack"
+    );
+
+    // Timestamps are monotonic at expected rate
+    assert!(parsed_frames[1].timestamp_us > parsed_frames[0].timestamp_us);
+    assert!(parsed_frames[2].timestamp_us > parsed_frames[1].timestamp_us);
+}
