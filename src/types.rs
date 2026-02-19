@@ -142,6 +142,66 @@ pub struct CaptureFrame {
     pub string_amplitude: [f32; 10],
 }
 
+// ─── Compact serialization ──────────────────────────────────────────────────
+
+/// Short-key representation for efficient WS streaming and JSONL logging.
+/// Field mapping: t=timestamp_us, p=pedals, kl=knee_levers, v=volume,
+/// bs=bar_sensors, bp=bar_position, bc=bar_confidence, bx=bar_source,
+/// hz=string_pitches_hz, sa=string_active, at=attacks, am=string_amplitude
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactFrame {
+    pub t: u64,
+    pub p: [f32; 3],
+    pub kl: [f32; 5],
+    pub v: f32,
+    pub bs: [f32; 4],
+    pub bp: Option<f32>,
+    pub bc: f32,
+    pub bx: BarSource,
+    pub hz: [f64; 10],
+    pub sa: [bool; 10],
+    pub at: [bool; 10],
+    pub am: [f32; 10],
+}
+
+impl From<&CaptureFrame> for CompactFrame {
+    fn from(f: &CaptureFrame) -> Self {
+        Self {
+            t: f.timestamp_us,
+            p: f.pedals,
+            kl: f.knee_levers,
+            v: f.volume,
+            bs: f.bar_sensors,
+            bp: f.bar_position,
+            bc: f.bar_confidence,
+            bx: f.bar_source,
+            hz: f.string_pitches_hz,
+            sa: f.string_active,
+            at: f.attacks,
+            am: f.string_amplitude,
+        }
+    }
+}
+
+impl From<CompactFrame> for CaptureFrame {
+    fn from(c: CompactFrame) -> Self {
+        Self {
+            timestamp_us: c.t,
+            pedals: c.p,
+            knee_levers: c.kl,
+            volume: c.v,
+            bar_sensors: c.bs,
+            bar_position: c.bp,
+            bar_confidence: c.bc,
+            bar_source: c.bx,
+            string_pitches_hz: c.hz,
+            string_active: c.sa,
+            attacks: c.at,
+            string_amplitude: c.am,
+        }
+    }
+}
+
 impl fmt::Display for CaptureFrame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let bar_str = match self.bar_position {

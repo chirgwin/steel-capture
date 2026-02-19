@@ -1,4 +1,4 @@
-use crate::types::CaptureFrame;
+use crate::types::{CaptureFrame, CompactFrame};
 use crossbeam_channel::Receiver;
 use log::{error, info, warn};
 use sha1_smol::Sha1;
@@ -375,7 +375,8 @@ impl WsServer {
             }
             pending_attacks = [false; 10]; // Clear after broadcast
 
-            let json = match serde_json::to_string(&send_frame) {
+            let compact = CompactFrame::from(&send_frame);
+            let json = match serde_json::to_string(&compact) {
                 Ok(j) => j,
                 Err(e) => {
                     warn!("JSON serialize error: {}", e);

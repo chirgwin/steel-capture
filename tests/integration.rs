@@ -588,4 +588,20 @@ fn test_ws_json_serialization() {
     assert_eq!(decoded.bar_position, Some(5.0));
     assert_eq!(decoded.string_active[2], true);
     assert_eq!(decoded.attacks[2], true);
+
+    // Compact format: shorter keys, same data
+    let compact = CompactFrame::from(&frame);
+    let compact_json = serde_json::to_string(&compact).unwrap();
+    assert!(compact_json.contains("\"t\":1234567"));
+    assert!(compact_json.contains("\"bp\":5.0"));
+    assert!(compact_json.contains("\"bx\":\"Fused\""));
+    assert!(compact_json.len() < json.len(), "compact should be shorter");
+
+    // Compact round-trip back to CaptureFrame
+    let compact_decoded: CompactFrame = serde_json::from_str(&compact_json).unwrap();
+    let back: CaptureFrame = compact_decoded.into();
+    assert_eq!(back.timestamp_us, 1234567);
+    assert_eq!(back.bar_position, Some(5.0));
+    assert_eq!(back.string_active[2], true);
+    assert_eq!(back.attacks[2], true);
 }

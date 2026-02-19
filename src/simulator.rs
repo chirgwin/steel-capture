@@ -660,7 +660,7 @@ struct ChordV {
     label: &'static str,
     fret: f32,
     ped: [bool; 3], // A, B, C
-    lev: [bool; 5], // LKL, LKV, LKR, RKL, RKR
+    lev: [bool; 5], // LKL, LKR, LKV, RKL, RKR
     strings: &'static [usize],
     passing: bool, // dim / transitional — shorter holds
 }
@@ -699,12 +699,12 @@ static CHORD_VOCAB: &[ChordV] = &[
         strings: &[2, 3, 4, 5, 7],
         passing: false,
     },
-    // G#m = open+LKR: E4→Eb4, E3→Eb3 → G#,Eb,B,G#,Eb = G# minor
+    // G#m = open+LKR: E4→Eb4, B3→Bb3, E3→Eb3 → G#,Eb,Bb,G#,Eb = G# minor
     ChordV {
         label: "G#m",
         fret: 0.,
         ped: [false, false, false],
-        lev: [false, false, true, false, false],
+        lev: [false, true, false, false, false],
         strings: &[2, 3, 4, 5, 7],
         passing: false,
     },
@@ -776,12 +776,12 @@ static CHORD_VOCAB: &[ChordV] = &[
         strings: &[2, 3, 4, 5, 7],
         passing: false,
     },
-    // Ebm7 = fret7+LKR: F#4→C#5,Eb5,Bb4,F#4,Eb4 = Db,Eb,Gb,Bb = Eb minor 7th
+    // Ebm7 = fret7+LKR: Eb,Bb,Gb,Eb = Eb minor 7th
     ChordV {
         label: "Ebm7",
         fret: 7.,
         ped: [false, false, false],
-        lev: [false, false, true, false, false],
+        lev: [false, true, false, false, false],
         strings: &[0, 2, 3, 4, 5],
         passing: false,
     },
@@ -809,6 +809,34 @@ static CHORD_VOCAB: &[ChordV] = &[
         lev: [false, false, false, false, false],
         strings: &[0, 2, 3, 4, 5],
         passing: false,
+    },
+    // ── Chords using RKL, RKR, LKV ──────────────────────────────────────────
+    // E(RKL) = open+RKL: D#→E(+1), G#→F#(-2) → F#,E,G#,E,B,F#,F#,E,D,B = E with 6th
+    ChordV {
+        label: "E/RKL",
+        fret: 0.,
+        ped: [false, false, false],
+        lev: [false, false, false, true, false],
+        strings: &[1, 2, 3, 4, 5],
+        passing: false,
+    },
+    // C#m7 = open+RKR(hard): D#→C#(-2), D→C#(-1) → F#,C#,G#,E,B,G#,F#,E,C#,B
+    ChordV {
+        label: "C#m7",
+        fret: 0.,
+        ped: [false, false, false],
+        lev: [false, false, false, false, true],
+        strings: &[1, 2, 3, 4, 8],
+        passing: false,
+    },
+    // Edim-ish = open+LKV: B→Bb on str5,10 → chromatic passing chord
+    ChordV {
+        label: "Epass",
+        fret: 0.,
+        ped: [false, false, false],
+        lev: [false, false, true, false, false],
+        strings: &[2, 3, 4, 5, 7],
+        passing: true,
     },
 ];
 

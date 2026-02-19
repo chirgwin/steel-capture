@@ -171,7 +171,8 @@ var fileCursor=0, fileStartT=0, fileLooping=true;
 // Register a JSON dataset as a playback source
 function registerFileSource(name, label, json){
   sources[name]={type:'file',label:label,data:json.packets,rate:json.sample_rate_hz||60,
-    duration:json.duration_s||(json.packets.length/(json.sample_rate_hz||60))};
+    duration:json.duration_s||(json.packets.length/(json.sample_rate_hz||60)),
+    isCapture:!!json._isCapture};
   rebuildSourceUI()}
 
 // Get next packet from current source
@@ -190,6 +191,15 @@ function sourceNext(wallTime){
     if(idx===fileCursor)return null; // no new packet yet
     fileCursor=idx;
     var p=src.data[idx];
+    if(src.isCapture){
+      // Compact CaptureFrame from JSONL recording — already processed, no coordProcess needed
+      return{_capture:true,timestamp_us:p.t||0,pedals:p.p||[0,0,0],knee_levers:p.kl||[0,0,0,0,0],
+        volume:p.v!=null?p.v:0,bar_position:p.bp!=null?p.bp:null,bar_confidence:p.bc||0,
+        bar_source:p.bx||'None',bar_sensors:p.bs||[0,0,0,0],
+        string_pitches_hz:p.hz||new Array(10).fill(0),
+        string_active:(p.sa||new Array(10).fill(false)).map(Boolean),
+        attacks:(p.at||new Array(10).fill(false)).map(Boolean),
+        string_amplitude:p.am||new Array(OM.length).fill(0)}}
     return{timestamp_us:p.t_us||Math.floor(idx*pktDur*1000),
       pedals:p.ped||[0,0,0],levers:p.lev||[0,0,0,0,0],
       bar_sens:p.sens||[0,0,0,0],volume:p.vol!=null?p.vol:0,
@@ -213,17 +223,31 @@ function rebuildSourceUI(){
   for(var i=0;i<names.length;i++){
     var n=names[i],s=sources[n],cls=n===curSrc?'btn on':'btn';
     html+='<button class="'+cls+'" onclick="switchSource(\''+n+'\')">'+s.label+'</button> '}
-  html+='<button class="btn" onclick="document.getElementById(\'fileIn\').click()">Load JSON</button>';
+  html+='<button class="btn" onclick="document.getElementById(\'fileIn\').click()">Load File</button>';
   el.innerHTML=html}
+
+function parseJSONL(text){
+  // JSONL: first line = header (has "format" field), rest = compact CaptureFrames
+  var lines=text.split('\n').filter(function(l){return l.trim().length>0});
+  if(lines.length<2)return null;
+  try{var hdr=JSON.parse(lines[0]);
+    if(!hdr.format)return null;
+    var packets=[];
+    for(var i=1;i<lines.length;i++){try{packets.push(JSON.parse(lines[i]))}catch(e){}}
+    return{packets:packets,sample_rate_hz:hdr.rate_hz||60,_isCapture:true}}catch(e){return null}}
 
 function handleFileLoad(evt){
   var f=evt.target.files[0];if(!f)return;
   var r=new FileReader();
   r.onload=function(e){
-    try{var j=JSON.parse(e.target.result);
-      var name=f.name.replace(/\.json$/i,'').replace(/[^a-zA-Z0-9_]/g,'_');
-      registerFileSource(name,f.name.replace(/\.json$/i,''),j);
-      switchSource(name)}catch(er){console.error('JSON parse error',er)}};
+    try{var txt=e.target.result;
+      var name=f.name.replace(/\.(json|jsonl)$/i,'').replace(/[^a-zA-Z0-9_]/g,'_');
+      var label=f.name.replace(/\.(json|jsonl)$/i,'');
+      // Try JSONL first (recorded sessions), fall back to legacy JSON
+      var j=parseJSONL(txt);
+      if(!j)j=JSON.parse(txt);
+      registerFileSource(name,label,j);
+      switchSource(name)}catch(er){console.error('File parse error',er)}};
   r.readAsText(f);evt.target.value=''}
 
 // ═══ AUDIO ═══
@@ -260,16 +284,23 @@ function toggleW(){if(wsConn){wsConn.close();wsConn=null;document.getElementById
     wsConn.onopen=function(){curSrc='ws';document.getElementById('bw').classList.add('on');H=[];coordReset();wsAmp=new Array(OM.length).fill(0);wsLastT=0;rebuildSourceUI()};
     wsConn.onmessage=function(e){try{var d=JSON.parse(e.data);
       if(d.bar_sens!==undefined&&d.picks!==undefined){
+        // Legacy raw sensor packet
         var pkt={timestamp_us:d.timestamp_us||0,pedals:d.pedals||[0,0,0],levers:d.levers||[0,0,0,0,0],
           bar_sens:d.bar_sens||[0,0,0,0],volume:d.volume!=null?d.volume:0,picks:d.picks?d.picks.map(Boolean):new Array(10).fill(false)};
         pushFrame(coordProcess(pkt,.016))}
       else{
-        var f={timestamp_us:d.timestamp_us||0,pedals:d.pedals||[0,0,0],knee_levers:d.knee_levers||[0,0,0,0,0],
-          volume:d.volume!=null?d.volume:0,bar_position:d.bar_position!=null?d.bar_position:null,
-          bar_confidence:d.bar_confidence||0,bar_source:d.bar_source||'None',bar_sensors:d.bar_sensors||[0,0,0,0],
-          string_pitches_hz:d.string_pitches_hz||new Array(10).fill(0),string_active:d.string_active?d.string_active.map(Boolean):new Array(10).fill(false),
-          attacks:d.attacks?d.attacks.map(Boolean):new Array(10).fill(false),
-          string_amplitude:d.string_amplitude||new Array(OM.length).fill(0)};
+        // CaptureFrame — accept both compact (t,p,kl,...) and verbose (timestamp_us,pedals,...) keys
+        var compact=d.t!==undefined;
+        var f={timestamp_us:(compact?d.t:d.timestamp_us)||0,pedals:(compact?d.p:d.pedals)||[0,0,0],
+          knee_levers:(compact?d.kl:d.knee_levers)||[0,0,0,0,0],
+          volume:(compact?d.v:d.volume)!=null?(compact?d.v:d.volume):0,
+          bar_position:(compact?d.bp:d.bar_position)!=null?(compact?d.bp:d.bar_position):null,
+          bar_confidence:(compact?d.bc:d.bar_confidence)||0,bar_source:(compact?d.bx:d.bar_source)||'None',
+          bar_sensors:(compact?d.bs:d.bar_sensors)||[0,0,0,0],
+          string_pitches_hz:(compact?d.hz:d.string_pitches_hz)||new Array(10).fill(0),
+          string_active:((compact?d.sa:d.string_active)||new Array(10).fill(false)).map(Boolean),
+          attacks:((compact?d.at:d.attacks)||new Array(10).fill(false)).map(Boolean),
+          string_amplitude:(compact?d.am:d.string_amplitude)||new Array(OM.length).fill(0)};
         var wNow=performance.now()/1000,wDt=wsLastT>0?Math.min(wNow-wsLastT,.05):.016;wsLastT=wNow;
         for(var i=0;i<OM.length;i++){
           if(f.attacks[i]){wsAmp[i]=wsAmp[i]<.1?1:Math.max(wsAmp[i],.6);atkFlash[i]=0.4}
@@ -830,7 +861,14 @@ function mainLoop(now){
   if(curSrc!==null&&curSrc!=='ws'){
     var wallT=now/1000;
     var pkt=sourceNext(wallT);
-    if(pkt)pushFrame(coordProcess(pkt,dt))}
+    if(pkt){if(pkt._capture){
+      // CaptureFrame from JSONL — apply amplitude envelope for viz
+      var fAmp=new Array(OM.length).fill(0);
+      for(var i=0;i<OM.length;i++){
+        if(pkt.attacks[i])fAmp[i]=1;
+        else if(pkt.string_active[i])fAmp[i]=Math.max(pkt.string_amplitude[i]||0,.3);
+      }pkt.string_amp=fAmp;pushFrame(pkt)}
+    else pushFrame(coordProcess(pkt,dt))}}
   updateAudio();pushCtrlHist();fc++;ft+=dt;
   if(ft>=.5){df=Math.round(fc/ft);fc=0;ft=0;document.getElementById('fps').textContent=df+'fps'}
   drawInstrument();drawStaff();drawTab();drawEnvelope();drawRoll();drawDetector();

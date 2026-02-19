@@ -252,6 +252,29 @@ fn crc16(data: &[u8]) -> u16 {
 mod tests {
     use super::*;
 
+    /// Build a valid 34-byte frame with correct CRC.
+    fn make_frame(adc_values: &[u16; NUM_CHANNELS], timestamp: u32) -> Vec<u8> {
+        let mut buf = vec![0u8; FRAME_SIZE];
+        // Sync
+        buf[0] = (SYNC_WORD & 0xFF) as u8;
+        buf[1] = (SYNC_WORD >> 8) as u8;
+        // Timestamp
+        buf[2] = (timestamp & 0xFF) as u8;
+        buf[3] = ((timestamp >> 8) & 0xFF) as u8;
+        buf[4] = ((timestamp >> 16) & 0xFF) as u8;
+        buf[5] = ((timestamp >> 24) & 0xFF) as u8;
+        // ADC values
+        for i in 0..NUM_CHANNELS {
+            buf[6 + i * 2] = (adc_values[i] & 0xFF) as u8;
+            buf[6 + i * 2 + 1] = (adc_values[i] >> 8) as u8;
+        }
+        // CRC over first 32 bytes
+        let crc = crc16(&buf[..FRAME_SIZE - 2]);
+        buf[FRAME_SIZE - 2] = (crc & 0xFF) as u8;
+        buf[FRAME_SIZE - 1] = (crc >> 8) as u8;
+        buf
+    }
+
     #[test]
     fn test_crc16() {
         let data = b"123456789";
@@ -263,5 +286,136 @@ mod tests {
     fn test_find_sync() {
         let buf = [0x00, 0x00, 0xEF, 0xBE, 0x01, 0x02];
         assert_eq!(find_sync(&buf), Some(2));
+    }
+
+    #[test]
+    fn test_find_sync_at_start() {
+        let buf = [0xEF, 0xBE, 0x01, 0x02];
+        assert_eq!(find_sync(&buf), Some(0));
+    }
+
+    #[test]
+    fn test_find_sync_not_found() {
+        let buf = [0x00, 0x01, 0x02, 0x03];
+        assert_eq!(find_sync(&buf), None);
+    }
+
+    #[test]
+    fn test_find_sync_partial_at_end() {
+        // 0xEF at last byte — can't confirm sync, should return None
+        let buf = [0x00, 0x01, 0xEF];
+        assert_eq!(find_sync(&buf), None);
+    }
+
+    #[test]
+    fn test_find_sync_empty() {
+        assert_eq!(find_sync(&[]), None);
+        assert_eq!(find_sync(&[0xEF]), None);
+    }
+
+    #[test]
+    fn test_parse_valid_frame() {
+        let adc = [2000u16; NUM_CHANNELS];
+        let frame = make_frame(&adc, 1000);
+        let cal = Calibration::default();
+        let clock = SessionClock::new();
+        let result = parse_frame(&frame, &cal, &clock);
+        assert!(result.is_ok());
+        let sf = result.unwrap();
+        // With default cal (200, 3800), raw 2000 → (2000-200)/3600 ≈ 0.5
+        assert!((sf.pedals[0] - 0.5).abs() < 0.01);
+        assert!((sf.volume - 0.5).abs() < 0.01);
+        assert!((sf.bar_sensors[0] - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_frame_bad_crc() {
+        let adc = [2000u16; NUM_CHANNELS];
+        let mut frame = make_frame(&adc, 1000);
+        frame[FRAME_SIZE - 1] ^= 0xFF;
+        let cal = Calibration::default();
+        let clock = SessionClock::new();
+        let result = parse_frame(&frame, &cal, &clock);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("CRC mismatch"));
+    }
+
+    #[test]
+    fn test_parse_frame_bad_sync() {
+        let adc = [2000u16; NUM_CHANNELS];
+        let mut frame = make_frame(&adc, 1000);
+        frame[0] = 0x00;
+        let cal = Calibration::default();
+        let clock = SessionClock::new();
+        let result = parse_frame(&frame, &cal, &clock);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("bad sync"));
+    }
+
+    #[test]
+    fn test_parse_frame_wrong_size() {
+        let cal = Calibration::default();
+        let clock = SessionClock::new();
+        let result = parse_frame(&[0u8; 10], &cal, &clock);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("wrong size"));
+    }
+
+    #[test]
+    fn test_calibration_clamps() {
+        let mut adc = [0u16; NUM_CHANNELS];
+        adc[0] = 0; // below min (200) → clamps to 0.0
+        adc[1] = 4095; // above max (3800) → clamps to 1.0
+        adc[2] = 200; // exactly at min → 0.0
+        let frame = make_frame(&adc, 500);
+        let cal = Calibration::default();
+        let clock = SessionClock::new();
+        let sf = parse_frame(&frame, &cal, &clock).unwrap();
+        assert_eq!(sf.pedals[0], 0.0, "below min clamps to 0");
+        assert_eq!(sf.pedals[1], 1.0, "above max clamps to 1");
+        assert_eq!(sf.pedals[2], 0.0, "exactly at min = 0");
+    }
+
+    #[test]
+    fn test_find_sync_with_garbage() {
+        let mut buf = vec![0xAA, 0xBB, 0xCC, 0xDD, 0xEE];
+        buf.push(0xEF);
+        buf.push(0xBE);
+        buf.push(0x00);
+        assert_eq!(find_sync(&buf), Some(5));
+    }
+
+    #[test]
+    fn test_channel_mapping() {
+        let mut adc = [0u16; NUM_CHANNELS];
+        adc[0] = 3800;
+        adc[1] = 3800;
+        adc[2] = 3800; // pedals → 1.0
+        adc[3] = 200;
+        adc[4] = 200;
+        adc[5] = 200;
+        adc[6] = 200;
+        adc[7] = 200; // levers → 0.0
+        adc[8] = 2000; // volume → ~0.5
+        adc[9] = 3000;
+        adc[10] = 3000;
+        adc[11] = 3000;
+        adc[12] = 3000; // bar → ~0.78
+        let frame = make_frame(&adc, 0);
+        let cal = Calibration::default();
+        let clock = SessionClock::new();
+        let sf = parse_frame(&frame, &cal, &clock).unwrap();
+        assert!((sf.pedals[0] - 1.0).abs() < 0.01);
+        assert!((sf.pedals[1] - 1.0).abs() < 0.01);
+        assert!((sf.pedals[2] - 1.0).abs() < 0.01);
+        for i in 0..5 {
+            assert_eq!(sf.knee_levers[i], 0.0);
+        }
+        assert!((sf.volume - 0.5).abs() < 0.01);
+        let expected = (3000.0 - 200.0) / 3600.0;
+        for i in 0..4 {
+            assert!((sf.bar_sensors[i] - expected).abs() < 0.01);
+        }
+        assert_eq!(sf.string_active, [false; 10]);
     }
 }

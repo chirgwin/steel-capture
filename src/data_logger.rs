@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::types::{AudioChunk, CaptureFrame, CompactFrame, Copedant};
 use crossbeam_channel::Receiver;
 use log::{error, info};
 use serde_json::json;
@@ -43,10 +43,18 @@ impl DataLogger {
         // Write manifest
         self.write_manifest();
 
-        // Open binary output file for capture frames
+        // Open JSONL output file — header line then compact frames
         let frames_path = self.session_dir.join("frames.jsonl");
         let frames_file = File::create(&frames_path).expect("create frames file");
         let mut frames_writer = BufWriter::new(frames_file);
+
+        // Write JSONL header (first line = metadata, subsequent lines = CompactFrame)
+        let header = json!({
+            "format": "steel-capture-v2",
+            "copedant": self.copedant.name,
+            "rate_hz": 60,
+        });
+        let _ = writeln!(frames_writer, "{}", serde_json::to_string(&header).unwrap());
 
         // Audio accumulator (we'll write a WAV at the end, or incrementally)
         let audio_path = self.session_dir.join("audio_raw.bin");
@@ -71,7 +79,8 @@ impl DataLogger {
             // Blocking receive of capture frames
             match self.rx.recv() {
                 Ok(frame) => {
-                    let line = serde_json::to_string(&frame).unwrap();
+                    let compact = CompactFrame::from(&frame);
+                    let line = serde_json::to_string(&compact).unwrap();
                     let _ = writeln!(frames_writer, "{}", line);
                     frame_count += 1;
 
@@ -132,7 +141,7 @@ impl DataLogger {
                 }).collect::<Vec<_>>(),
             },
             "sensor_config": {
-                "channels": 9,
+                "channels": 13,
                 "rate_hz": 1000,
                 "pedals": ["A", "B", "C"],
                 "knee_levers": ["LKL", "LKR", "LKV", "RKL", "RKR"],
