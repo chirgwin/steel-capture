@@ -18,13 +18,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 cd steel-capture
 cargo build --release --no-default-features
 
-# Run the simulator with browser visualization
-cargo run --release --no-default-features -- --ws
+# Run the simulator with browser visualization (algorithmic improv demo)
+cargo run --release --no-default-features -- --ws --demo improv
 
 # Open http://localhost:8080 in your browser
 ```
 
-The simulator runs a ~15-second demo sequence exercising pedals, knee levers, bar slides, vibrato, and volume swells with synthetic audio matching the E9 copedant.
+The `--demo` flag selects the demo sequence: `basic` (short, default), `e9` (90-second scripted tour of the E9 copedant), or `improv` (open-ended algorithmic improvisation with weighted chord progressions and volume expression).
 
 ## Build Options
 
@@ -37,30 +37,68 @@ The simulator runs a ~15-second demo sequence exercising pedals, knee levers, ba
 
 ## Run Modes
 
-### Simulator (development/testing)
+### Native GUI (macOS — default)
+```bash
+# WebView window with algorithmic improv demo
+cargo run --release -- --demo improv
+
+# With external browser access too (--ws opens a second tab)
+cargo run --release -- --ws --demo improv
+
+# Headless (no GUI window), browser only
+cargo run --release -- --no-gui --ws --demo e9
+```
+
+The native GUI uses wry/tao (WKWebView on macOS). It auto-starts the WS server internally; `--ws` additionally allows external browser connections.
+
+### Headless Simulator (development/testing)
 ```bash
 # Browser visualization on localhost:8080
-cargo run --release --no-default-features -- --ws
+cargo run --release --no-default-features -- --ws --demo improv
 
 # With audio-based string detection (tests the detector against synthetic audio)
 cargo run --release --no-default-features -- --ws --detect-strings
 
+# Supply a real WAV file as audio input (auto-enables string detection)
+cargo run --release --no-default-features -- --ws --audio-file recording.wav
+
 # Console TUI (no browser needed)
 cargo run --release --no-default-features -- --console
 
-# Log session data to disk
+# Log session data to disk (JSONL + raw audio)
 cargo run --release --no-default-features -- --log-data --output-dir ./sessions
 
 # OSC output (e.g., to Csound, SuperCollider, Max)
 cargo run --release --no-default-features -- --osc --osc-target 127.0.0.1:9000
 
 # Combine everything
-cargo run --release --no-default-features -- --ws --osc --log-data --console
+cargo run --release --no-default-features -- --ws --osc --log-data --console --demo improv
 ```
+
+### Demo Sequences
+
+| `--demo` value | Description |
+|----------------|-------------|
+| `basic` | Short ~15-second sequence (default). Exercises pedals, bar slides, vibrato. |
+| `e9` | 90-second scripted tour of the E9 copedant. Hits every pedal and lever. |
+| `improv` | Open-ended algorithmic improvisation. Weighted chord progressions, volume expression, all 5 levers exercised. Runs until stopped. |
 
 ### Hardware (with Teensy + sensors)
 ```bash
 cargo run --release --features hardware -- --port /dev/ttyACM0 --ws --detect-strings
+```
+
+### Calibration (requires `calibration` feature)
+```bash
+# Interactive per-string calibration from live microphone
+cargo build --no-default-features --features calibration
+cargo run --release --no-default-features --features calibration -- --calibrate
+
+# Calibrate from a WAV file instead of live mic
+cargo run --release --no-default-features --features calibration -- --calibrate --audio-file strings.wav
+
+# Use a saved calibration file at runtime
+cargo run --release --no-default-features -- --ws --calibration-file calibration.json
 ```
 
 ## Tests
@@ -68,6 +106,9 @@ cargo run --release --features hardware -- --port /dev/ttyACM0 --ws --detect-str
 ```bash
 # Run all tests (47 total: 36 unit + 11 integration)
 cargo test --no-default-features
+
+# With hardware feature (60 tests: 49 unit + 11 integration)
+cargo test --no-default-features --features hardware
 
 # With calibration feature (51 tests)
 cargo test --no-default-features --features calibration
@@ -81,19 +122,20 @@ cargo test --no-default-features --test integration
 
 ### Test Coverage
 
-**Unit tests (36):**
+**Unit tests (36 base, +13 with `hardware` feature):**
 - `copedant` (14): MIDI/Hz conversion, open strings, all pedals (A/B/C), all levers (LKL/LKR/LKV/RKL/RKR), partial engagement, combinations (A+C), two-stop lever (RKR soft/hard)
 - `bar_sensor` (8): Hall sensor readings at various frets, interpolation accuracy, smoothing, edge cases
 - `string_detector` (7): Single string detection, 3-string grip, pedal interaction, silence, no-bar, attack-only-on-onset, release-then-reattack
 - `bar_inference` (6): Goertzel frequency detection, sensor-only during silence, fused sensor+audio, pedal interaction, bar lift, silence+no-bar
 - `calibration` (1): Config roundtrip
+- `serial_reader` (13, `hardware` feature): Frame parsing, CRC validation, sync detection (start, middle, garbage, partial, empty), calibration clamping, channel mapping
 
 **Integration tests (11):**
 - Pipeline: basic grip, pedal pitch shift, attack timing, pedal-triggered attacks, silence/no-bar, volume independence
 - Audio detection validation against simulator ground truth
 - Per-string spectral resolution
 - Bar sensor to inference pipeline across frets 0-15
-- CaptureFrame JSON serialization round-trip (frontend contract)
+- CaptureFrame + CompactFrame JSON serialization round-trip
 
 **With `calibration` feature (+4):** threshold computation, overlap handling, noisy-signal floor
 
@@ -180,42 +222,70 @@ See `HARDWARE.md` for the full plan (~$65). Key components:
 
 ## WebSocket Protocol
 
-CaptureFrame JSON streamed at `--ws-fps` rate (default 60):
+CompactFrame JSON streamed at `--ws-fps` rate (default 60). Uses short keys to reduce bandwidth (~40% smaller than verbose):
 
 ```json
-{
-  "timestamp_us": 1234567,
-  "pedals": [0.0, 0.5, 1.0],
-  "knee_levers": [0.0, 0.0, 0.0, 0.3, 0.0],
-  "volume": 0.8,
-  "bar_sensors": [0.1, 0.9, 0.2, 0.0],
-  "bar_position": 5.0,
-  "bar_confidence": 0.95,
-  "bar_source": "Fused",
-  "string_pitches_hz": [370.0, 311.0, 415.0, 329.0, 247.0, 207.0, 185.0, 164.0, 147.0, 123.0],
-  "string_active": [false, false, true, true, true, false, false, false, false, false],
-  "attacks": [false, false, true, false, false, false, false, false, false, false]
-}
+{"t":1234567,"p":[0.0,0.5,1.0],"kl":[0.0,0.0,0.0,0.3,0.0],"v":0.8,"bs":[0.1,0.9,0.2,0.0],"bp":5.0,"bc":0.95,"bx":"Fused","hz":[370.0,311.0,415.0,329.0,247.0,207.0,185.0,164.0,147.0,123.0],"sa":[false,false,true,true,true,false,false,false,false,false],"at":[false,false,true,false,false,false,false,false,false,false],"am":[0.0,0.0,0.8,0.7,0.6,0.0,0.0,0.0,0.0,0.0]}
 ```
+
+| Key | Full name | Type |
+|-----|-----------|------|
+| `t` | timestamp_us | u64 |
+| `p` | pedals | [f32; 3] |
+| `kl` | knee_levers | [f32; 5] |
+| `v` | volume | f32 |
+| `bs` | bar_sensors | [f32; 4] |
+| `bp` | bar_position | f32 or null |
+| `bc` | bar_confidence | f32 |
+| `bx` | bar_source | "None"/"Sensor"/"Audio"/"Fused" |
+| `hz` | string_pitches_hz | [f64; 10] |
+| `sa` | string_active | [bool; 10] |
+| `at` | attacks | [bool; 10] |
+| `am` | string_amplitude | [f32; 10] |
+
+The browser visualization accepts both compact and verbose keys for backward compatibility.
+
+## Session Recording Format
+
+`--log-data` writes JSONL (one JSON object per line):
+
+```
+{"format":"steel-capture-v2","copedant":"Buddy Emmons E9","rate_hz":60}
+{"t":16667,"p":[0.0,0.0,0.0],"kl":[0.0,0.0,0.0,0.0,0.0],"v":0.7,...}
+{"t":33333,"p":[0.0,0.0,0.0],...}
+```
+
+First line is a header with format version, copedant name, and sample rate. Each subsequent line is a CompactFrame. The visualization can load `.jsonl` files directly via the "Load File" button.
 
 ## CLI Reference
 
 ```
 steel-capture [OPTIONS]
 
-Options:
-      --simulate            Run in simulator mode [default: true]
-      --port <PORT>         Serial port [default: /dev/ttyACM0]
-      --osc-target <ADDR>   OSC target [default: 127.0.0.1:9000]
-      --osc                 Enable OSC output
-      --log-data            Enable data logging
-      --output-dir <DIR>    Session output directory [default: ./sessions]
-      --console             Enable console TUI
-      --display-hz <HZ>     Console refresh rate [default: 20]
-      --no-gui              Disable native GUI
-      --ws                  Enable WebSocket server
-      --ws-addr <ADDR>      WebSocket bind address [default: 0.0.0.0:8080]
-      --ws-fps <FPS>        WebSocket broadcast rate [default: 60]
-      --sensor-rate <HZ>    Sensor sample rate [default: 1000]
-      --detect-strings      Use audio-based string detection
+Input:
+      --simulate                Run in simulator mode [default: true]
+      --port <PORT>             Serial port for Teensy [default: /dev/ttyACM0]
+      --demo <NAME>             Simulator demo: basic, e9, or improv [default: basic]
+      --sensor-rate <HZ>        Sensor sample rate [default: 1000]
+      --audio-file <PATH>       WAV file as audio input (auto-enables --detect-strings)
+      --detect-strings          Use audio-based string detection
+
+Output:
+      --ws                      Enable WebSocket server for browser viz
+      --ws-addr <ADDR>          WebSocket bind address [default: 0.0.0.0:8080]
+      --ws-fps <FPS>            WebSocket broadcast rate [default: 60]
+      --no-open                 Suppress auto-opening browser when --ws is active
+      --osc                     Enable OSC output
+      --osc-target <ADDR>       OSC target address [default: 127.0.0.1:9000]
+      --log-data                Enable session logging (JSONL + raw audio)
+      --output-dir <DIR>        Session output directory [default: ./sessions]
+      --console                 Enable console TUI
+      --display-hz <HZ>         Console refresh rate [default: 20]
+
+GUI:
+      --no-gui                  Disable native WebView window
+
+Calibration (--features calibration):
+      --calibrate               Run interactive per-string calibration
+      --calibration-file <PATH> Calibration JSON path [default: calibration.json]
 ```
