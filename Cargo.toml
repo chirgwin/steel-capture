@@ -31,13 +31,11 @@ tao = { version = "0.34", optional = true }
 # Hardware dependencies — optional for simulator-only builds
 serialport = { version = "4.3", optional = true }
 
-# Audio synthesis (native, optional — web viz handles sound via Web Audio API)
+# Audio capture (for interactive calibration from live microphone)
 cpal = { version = "0.15", optional = true }
-fundsp = { version = "0.23", optional = true }
 
 [features]
 default = ["gui"]
 gui = ["wry", "tao"]
 hardware = ["serialport"]
-audio = ["cpal", "fundsp"]
 calibration = ["cpal"]

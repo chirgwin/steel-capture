@@ -5,6 +5,8 @@ pub mod console_display;
 pub mod coordinator;
 pub mod copedant;
 pub mod data_logger;
+pub mod dsp;
+pub mod jsonl_reader;
 pub mod osc_sender;
 pub mod simulator;
 pub mod string_detector;

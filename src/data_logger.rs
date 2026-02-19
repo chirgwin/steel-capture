@@ -7,6 +7,44 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Build the JSONL header line — self-describing parameter table.
+/// Every field's key, type, range, and unit is documented so any reader
+/// can parse frames without knowing the steel-capture codebase.
+pub fn build_jsonl_header(copedant: &Copedant) -> serde_json::Value {
+    json!({
+        "format": "steel-capture",
+        "rate_hz": 60,
+        "copedant": {
+            "name": copedant.name,
+            "open_strings_midi": copedant.open_strings,
+            "pedals": copedant.pedals.iter().map(|p| {
+                json!({"name": p.name, "changes": p.changes.iter().map(|(s, d)| {
+                    json!({"string": s, "semitones": d})
+                }).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>(),
+            "levers": copedant.levers.iter().map(|l| {
+                json!({"name": l.name, "changes": l.changes.iter().map(|(s, d)| {
+                    json!({"string": s, "semitones": d})
+                }).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>(),
+        },
+        "channels": [
+            {"key": "t",  "name": "timestamp_us",      "type": "u64",    "unit": "microseconds"},
+            {"key": "p",  "name": "pedals",             "type": "f32[]",  "count": 3,  "range": [0, 1], "unit": "engagement"},
+            {"key": "kl", "name": "knee_levers",        "type": "f32[]",  "count": 5,  "range": [0, 1], "unit": "engagement"},
+            {"key": "v",  "name": "volume",             "type": "f32",    "range": [0, 1], "unit": "engagement"},
+            {"key": "bs", "name": "bar_sensors",        "type": "f32[]",  "count": 4,  "range": [0, 1], "unit": "hall_normalized"},
+            {"key": "bp", "name": "bar_position",       "type": "f32?",   "range": [0, 24], "unit": "frets", "null_meaning": "bar lifted"},
+            {"key": "bc", "name": "bar_confidence",     "type": "f32",    "range": [0, 1]},
+            {"key": "bx", "name": "bar_source",         "type": "enum",   "values": ["None", "Sensor", "Audio", "Fused"]},
+            {"key": "hz", "name": "string_pitches_hz",  "type": "f64[]",  "count": 10, "unit": "Hz"},
+            {"key": "sa", "name": "string_active",      "type": "bool[]", "count": 10},
+            {"key": "at", "name": "attacks",            "type": "bool[]", "count": 10},
+            {"key": "am", "name": "string_amplitude",   "type": "f32[]",  "count": 10, "range": [0, 1]},
+        ],
+    })
+}
+
 pub struct DataLogger {
     rx: Receiver<CaptureFrame>,
     audio_rx: Receiver<AudioChunk>,
@@ -48,41 +86,7 @@ impl DataLogger {
         let frames_file = File::create(&frames_path).expect("create frames file");
         let mut frames_writer = BufWriter::new(frames_file);
 
-        // Write JSONL header — self-describing parameter table (ADR FRED-style).
-        // Every field's key, type, range, and unit is documented in the file itself,
-        // so any reader can parse frames without knowing the steel-capture codebase.
-        let header = json!({
-            "format": "steel-capture",
-            "rate_hz": 60,
-            "copedant": {
-                "name": self.copedant.name,
-                "open_strings_midi": self.copedant.open_strings,
-                "pedals": self.copedant.pedals.iter().map(|p| {
-                    json!({"name": p.name, "changes": p.changes.iter().map(|(s, d)| {
-                        json!({"string": s, "semitones": d})
-                    }).collect::<Vec<_>>()})
-                }).collect::<Vec<_>>(),
-                "levers": self.copedant.levers.iter().map(|l| {
-                    json!({"name": l.name, "changes": l.changes.iter().map(|(s, d)| {
-                        json!({"string": s, "semitones": d})
-                    }).collect::<Vec<_>>()})
-                }).collect::<Vec<_>>(),
-            },
-            "channels": [
-                {"key": "t",  "name": "timestamp_us",      "type": "u64",    "unit": "microseconds"},
-                {"key": "p",  "name": "pedals",             "type": "f32[]",  "count": 3,  "range": [0, 1], "unit": "engagement"},
-                {"key": "kl", "name": "knee_levers",        "type": "f32[]",  "count": 5,  "range": [0, 1], "unit": "engagement"},
-                {"key": "v",  "name": "volume",             "type": "f32",    "range": [0, 1], "unit": "engagement"},
-                {"key": "bs", "name": "bar_sensors",        "type": "f32[]",  "count": 4,  "range": [0, 1], "unit": "hall_normalized"},
-                {"key": "bp", "name": "bar_position",       "type": "f32?",   "range": [0, 24], "unit": "frets", "null_meaning": "bar lifted"},
-                {"key": "bc", "name": "bar_confidence",     "type": "f32",    "range": [0, 1]},
-                {"key": "bx", "name": "bar_source",         "type": "enum",   "values": ["None", "Sensor", "Audio", "Fused"]},
-                {"key": "hz", "name": "string_pitches_hz",  "type": "f64[]",  "count": 10, "unit": "Hz"},
-                {"key": "sa", "name": "string_active",      "type": "bool[]", "count": 10},
-                {"key": "at", "name": "attacks",            "type": "bool[]", "count": 10},
-                {"key": "am", "name": "string_amplitude",   "type": "f32[]",  "count": 10, "range": [0, 1]},
-            ],
-        });
+        let header = build_jsonl_header(&self.copedant);
         let _ = writeln!(frames_writer, "{}", serde_json::to_string(&header).unwrap());
 
         // Audio accumulator (we'll write a WAV at the end, or incrementally)
@@ -147,7 +151,6 @@ impl DataLogger {
 
     fn write_manifest(&self) {
         let manifest = json!({
-            "system": "steel-capture",
             "system": "steel-capture",
             "copedant": {
                 "name": self.copedant.name,

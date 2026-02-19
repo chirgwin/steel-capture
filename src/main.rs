@@ -19,7 +19,9 @@ use steel_capture::ws_server;
 
 use clap::Parser;
 use crossbeam_channel::{bounded, unbounded};
-use log::{error, info};
+#[cfg(any(feature = "calibration", not(feature = "hardware")))]
+use log::error;
+use log::info;
 use std::path::PathBuf;
 use std::thread;
 

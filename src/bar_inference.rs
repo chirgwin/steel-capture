@@ -1,5 +1,6 @@
 use crate::bar_sensor::BarSensor;
 use crate::copedant::{midi_to_hz, CopedantEngine};
+use crate::dsp::{compute_rms, goertzel_magnitude};
 use crate::types::*;
 use log::trace;
 
@@ -24,7 +25,6 @@ pub struct BarInference {
     silence_threshold: f32,
     smoothing: f32,
     pub last_position: Option<f32>,
-    silence_count: u32,
     /// Fret candidates to test (0.0 to 24.0 in 0.1 steps)
     fret_candidates: Vec<f32>,
     /// Audio ring buffer — accumulates samples across ticks
@@ -48,7 +48,6 @@ impl BarInference {
             silence_threshold: 0.005,
             smoothing: 0.7,
             last_position: None,
-            silence_count: 0,
             fret_candidates,
             audio_buf: Vec::with_capacity(8192),
             analysis_window: 4096, // ~85ms at 48kHz — resolves B2 (123Hz)
@@ -173,10 +172,8 @@ impl BarInference {
 
         let rms = compute_rms(samples);
         if rms < self.silence_threshold {
-            self.silence_count += 1;
             return None;
         }
-        self.silence_count = 0;
 
         let open = engine.effective_open_pitches(sensor);
         let sr = self.sample_rate as f64;
@@ -266,55 +263,10 @@ fn refine_fret(best: f32, open: &[f64; 10], samples: &[f32], sr: f64) -> f32 {
     (best + (offset as f32) * step).clamp(0.0, 24.0)
 }
 
-/// Goertzel algorithm: compute magnitude of a single frequency bin.
-/// Much cheaper than FFT when you only need specific frequencies.
-fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) -> f64 {
-    let k = (freq * n as f64 / sample_rate).round();
-    let w = 2.0 * std::f64::consts::PI * k / n as f64;
-    let coeff = 2.0 * w.cos();
-    let mut s1 = 0.0f64;
-    let mut s2 = 0.0f64;
-    for sample in samples.iter().take(n) {
-        let s0 = *sample as f64 + coeff * s1 - s2;
-        s2 = s1;
-        s1 = s0;
-    }
-    (s1 * s1 + s2 * s2 - coeff * s1 * s2).abs().sqrt()
-}
-
-fn compute_rms(samples: &[f32]) -> f32 {
-    if samples.is_empty() {
-        return 0.0;
-    }
-    let sum: f32 = samples.iter().map(|s| s * s).sum();
-    (sum / samples.len() as f32).sqrt()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f64::consts::PI;
-
-    fn sine_wave(freq_hz: f64, sr: u32, ms: u32) -> Vec<f32> {
-        let n = (sr as u64 * ms as u64 / 1000) as usize;
-        (0..n)
-            .map(|i| (0.8 * (2.0 * PI * freq_hz * i as f64 / sr as f64).sin()) as f32)
-            .collect()
-    }
-
-    fn multi_sine(freqs: &[f64], sr: u32, ms: u32) -> Vec<f32> {
-        let n = (sr as u64 * ms as u64 / 1000) as usize;
-        let amp = 0.6 / freqs.len() as f64;
-        (0..n)
-            .map(|i| {
-                let t = i as f64 / sr as f64;
-                freqs
-                    .iter()
-                    .map(|&f| amp * (2.0 * PI * f * t).sin())
-                    .sum::<f64>() as f32
-            })
-            .collect()
-    }
+    use crate::dsp::test_helpers::{multi_sine, sine_wave};
 
     fn feed_and_infer(
         inf: &mut BarInference,
@@ -345,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_goertzel_finds_frequency() {
-        let samples = sine_wave(440.0, 48000, 100);
+        let samples = sine_wave(440.0, 0.8, 48000, 100);
         let n = samples.len();
         let m440 = goertzel_magnitude(&samples, 440.0, 48000.0, n);
         let m300 = goertzel_magnitude(&samples, 300.0, 48000.0, n);
@@ -386,7 +338,7 @@ mod tests {
             .iter()
             .map(|&si| midi_to_hz(open[si] + 3.0))
             .collect();
-        let samples = multi_sine(&freqs, 48000, 100);
+        let samples = multi_sine(&freqs, 0.2, 48000, 100);
         let r = feed_and_infer(&mut inf, &samples, 48000, &sensor, &engine);
         assert!(r.position.is_some(), "should detect fused");
         let p = r.position.unwrap();
@@ -406,7 +358,7 @@ mod tests {
             .iter()
             .map(|&si| midi_to_hz(open[si] + 5.0))
             .collect();
-        let samples = multi_sine(&freqs, 48000, 100);
+        let samples = multi_sine(&freqs, 0.2, 48000, 100);
         let r = feed_and_infer(&mut inf, &samples, 48000, &sensor, &engine);
         assert!(r.position.is_some());
         let p = r.position.unwrap();

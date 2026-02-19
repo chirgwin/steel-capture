@@ -70,7 +70,7 @@ impl Simulator {
         self
     }
 
-    /// Run a named demo sequence. `demo` is one of "basic" or "e9".
+    /// Run a named demo sequence: "basic" (default), "e9", or "improv".
     /// Blocks the calling thread.
     pub fn run(&mut self, demo: &str) {
         info!("Simulator starting '{}' sequence...", demo);

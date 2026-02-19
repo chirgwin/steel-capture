@@ -14,6 +14,8 @@ use std::time::Duration;
 use steel_capture::bar_sensor::simulate_bar_readings;
 use steel_capture::coordinator::Coordinator;
 use steel_capture::copedant::{buddy_emmons_e9, midi_to_hz, CopedantEngine};
+use steel_capture::data_logger::build_jsonl_header;
+use steel_capture::jsonl_reader::SessionReader;
 use steel_capture::string_detector::StringDetector;
 use steel_capture::types::*;
 
@@ -107,7 +109,7 @@ fn make_events(
         let ts = tick as u64 * 1000; // microseconds
 
         let sensor = sensor_with_bar_and_strings(ts, fret, active_strings, pedals, levers, volume);
-        events.push(InputEvent::Sensor(sensor.clone()));
+        events.push(InputEvent::Sensor(sensor));
 
         // Generate matching audio if any strings active and volume > 0
         if volume > 0.01 && !active_strings.is_empty() {
@@ -235,7 +237,7 @@ fn test_pipeline_attacks_on_string_onset() {
         let ts = tick as u64 * 1000;
         let active = &[2usize, 3, 4];
         let sensor = sensor_with_bar_and_strings(ts, 3.0, active, [0.0; 3], [0.0; 5], 0.8);
-        events.push(InputEvent::Sensor(sensor.clone()));
+        events.push(InputEvent::Sensor(sensor));
 
         // Generate audio
         let open = engine.effective_open_pitches(&sensor);
@@ -308,7 +310,7 @@ fn test_pipeline_pedal_triggers_attack_on_active_strings() {
 
         let sensor =
             sensor_with_bar_and_strings(ts, 5.0, active, [0.0, pedal_b, 0.0], [0.0; 5], 0.8);
-        events.push(InputEvent::Sensor(sensor.clone()));
+        events.push(InputEvent::Sensor(sensor));
 
         let open = engine.effective_open_pitches(&sensor);
         let mut samples = vec![0.0f32; samples_per_tick as usize];
@@ -1091,4 +1093,443 @@ fn test_jsonl_input_end_to_end() {
     // Timestamps are monotonic at expected rate
     assert!(parsed_frames[1].timestamp_us > parsed_frames[0].timestamp_us);
     assert!(parsed_frames[2].timestamp_us > parsed_frames[1].timestamp_us);
+}
+
+// ─── Hardware-mode tests ─────────────────────────────────────────────────────
+//
+// These test the pipeline with use_audio_detection=true and string_active=[false;10]
+// on all sensor frames, simulating what happens with a real Teensy where the
+// hardware doesn't know which strings are picked.
+
+/// Build events simulating hardware mode: sensor frames have string_active=[false;10],
+/// but audio contains sine waves for the specified strings.
+fn make_hardware_events(
+    fret: f32,
+    active_strings: &[usize],
+    pedals: [f32; 3],
+    volume: f32,
+    n_ticks: u32,
+    sr: u32,
+) -> Vec<InputEvent> {
+    let engine = CopedantEngine::new(buddy_emmons_e9());
+    let samples_per_tick = sr / 1000;
+    let mut events = Vec::new();
+    let mut sample_counter: u64 = 0;
+
+    for tick in 0..n_ticks {
+        let ts = tick as u64 * 1000;
+        // Hardware-like: string_active is always false
+        let sensor = SensorFrame {
+            timestamp_us: ts,
+            pedals,
+            knee_levers: [0.0; 5],
+            volume,
+            bar_sensors: simulate_bar_readings(fret),
+            string_active: [false; 10],
+        };
+        events.push(InputEvent::Sensor(sensor));
+
+        // Generate audio for target strings
+        if volume > 0.01 && !active_strings.is_empty() {
+            let open = engine.effective_open_pitches(&sensor);
+            let mut samples = vec![0.0f32; samples_per_tick as usize];
+            let amp = volume * 0.5 / active_strings.len() as f32;
+            for &si in active_strings {
+                if si < 10 {
+                    let freq = midi_to_hz(open[si] + fret as f64);
+                    for (j, s) in samples.iter_mut().enumerate() {
+                        let t = (sample_counter + j as u64) as f64 / sr as f64;
+                        *s += amp * (2.0 * std::f64::consts::PI * freq * t).sin() as f32;
+                    }
+                }
+            }
+            sample_counter += samples_per_tick as u64;
+            events.push(InputEvent::Audio(AudioChunk {
+                timestamp_us: ts,
+                samples,
+                sample_rate: sr,
+            }));
+        }
+    }
+    events
+}
+
+#[test]
+fn test_hardware_mode_audio_detection() {
+    // Hardware mode: string_active=[false;10] on all sensor frames.
+    // Coordinator must detect strings 3,4,5 from audio alone.
+    let events = make_hardware_events(
+        5.0,
+        &[2, 3, 4],
+        [0.0; 3],
+        0.8,
+        600, // 600ms
+        48000,
+    );
+
+    let frames = run_pipeline(events, true);
+    assert!(!frames.is_empty(), "should produce frames");
+
+    // Check late frames (after audio buffer fills and detection stabilizes)
+    let late_frames: Vec<_> = frames.iter().filter(|f| f.timestamp_us > 400_000).collect();
+    assert!(!late_frames.is_empty(), "should have late frames");
+
+    let detected = late_frames
+        .iter()
+        .filter(|f| {
+            let hits = [2, 3, 4].iter().filter(|&&si| f.string_active[si]).count();
+            hits >= 2
+        })
+        .count();
+
+    assert!(
+        detected > 0,
+        "hardware mode should detect strings from audio alone; late frames: {}",
+        late_frames.len()
+    );
+}
+
+#[test]
+fn test_hardware_mode_bar_sensor_during_silence() {
+    // Hardware mode: bar at fret 7, no audio at all.
+    // Bar position should still be detected from hall sensors.
+    let mut events = Vec::new();
+    for tick in 0..200 {
+        let ts = tick as u64 * 1000;
+        events.push(InputEvent::Sensor(SensorFrame {
+            timestamp_us: ts,
+            pedals: [0.0; 3],
+            knee_levers: [0.0; 5],
+            volume: 0.7,
+            bar_sensors: simulate_bar_readings(7.0),
+            string_active: [false; 10],
+        }));
+    }
+
+    let frames = run_pipeline(events, true);
+    let last = frames.last().expect("should produce frames");
+    assert!(
+        last.bar_position.is_some(),
+        "bar should be detected from sensors alone"
+    );
+    let pos = last.bar_position.unwrap();
+    assert!((pos - 7.0).abs() < 1.5, "bar at {:.2}, expected ~7.0", pos);
+    assert_eq!(last.bar_source, BarSource::Sensor);
+    // No strings detected (no audio)
+    assert!(last.string_active.iter().all(|&a| !a));
+}
+
+#[test]
+fn test_hardware_mode_pedal_attack_with_audio() {
+    // Hardware mode: strings 3,6 active via audio, pedal B engages mid-sequence.
+    // Pedal B affects strings 3 and 6 — should fire attack when pedal crosses 0.5.
+    let engine = CopedantEngine::new(buddy_emmons_e9());
+    let sr = 48000u32;
+    let samples_per_tick = sr / 1000;
+    let fret = 5.0f32;
+    let target_strings = [2usize, 5]; // strings 3, 6
+    let mut events = Vec::new();
+    let mut sample_counter: u64 = 0;
+
+    for tick in 0..600 {
+        let ts = tick as u64 * 1000;
+        // Pedal B ramps from 0.0 to 1.0 between tick 300-400
+        let pedal_b = if tick < 300 {
+            0.0
+        } else if tick < 400 {
+            (tick - 300) as f32 / 100.0
+        } else {
+            1.0
+        };
+
+        let sensor = SensorFrame {
+            timestamp_us: ts,
+            pedals: [0.0, pedal_b, 0.0],
+            knee_levers: [0.0; 5],
+            volume: 0.8,
+            bar_sensors: simulate_bar_readings(fret),
+            string_active: [false; 10],
+        };
+        events.push(InputEvent::Sensor(sensor));
+
+        // Generate audio for target strings (using current pedal state)
+        let open = engine.effective_open_pitches(&sensor);
+        let mut samples = vec![0.0f32; samples_per_tick as usize];
+        let amp = 0.15;
+        for &si in &target_strings {
+            let freq = midi_to_hz(open[si] + fret as f64);
+            for (j, s) in samples.iter_mut().enumerate() {
+                let t = (sample_counter + j as u64) as f64 / sr as f64;
+                *s += amp * (2.0 * std::f64::consts::PI * freq * t).sin() as f32;
+            }
+        }
+        sample_counter += samples_per_tick as u64;
+        events.push(InputEvent::Audio(AudioChunk {
+            timestamp_us: ts,
+            samples,
+            sample_rate: sr,
+        }));
+    }
+
+    let frames = run_pipeline(events, true);
+
+    // Find frames around when pedal B crosses 0.5 (tick ~350, ts ~350000)
+    let pedal_crossing_frames: Vec<_> = frames
+        .iter()
+        .filter(|f| f.timestamp_us > 300_000 && f.timestamp_us < 500_000)
+        .collect();
+
+    // At least one frame in this range should have an attack on string 3 or 6
+    let has_pedal_attack = pedal_crossing_frames
+        .iter()
+        .any(|f| f.attacks[2] || f.attacks[5]);
+    assert!(
+        has_pedal_attack,
+        "pedal B crossing 0.5 should fire attack on affected strings (3 and/or 6)"
+    );
+}
+
+// ─── JSONL round-trip tests ──────────────────────────────────────────────────
+
+/// Generate a complete JSONL string (header + frames) from real pipeline output.
+fn generate_jsonl(
+    fret: Option<f32>,
+    active_strings: &[usize],
+    pedals: [f32; 3],
+    levers: [f32; 5],
+    volume: f32,
+    n_ticks: u32,
+) -> String {
+    let copedant = buddy_emmons_e9();
+    let events = if let Some(f) = fret {
+        make_events(f, active_strings, pedals, levers, volume, n_ticks, 48000)
+    } else {
+        // No bar: sensor at rest + no audio
+        (0..n_ticks)
+            .map(|tick| InputEvent::Sensor(SensorFrame::at_rest(tick as u64 * 1000)))
+            .collect()
+    };
+    let frames = run_pipeline(events, false);
+
+    let mut jsonl = String::new();
+    let header = build_jsonl_header(&copedant);
+    jsonl.push_str(&serde_json::to_string(&header).unwrap());
+    jsonl.push('\n');
+    for frame in &frames {
+        let compact = CompactFrame::from(frame);
+        jsonl.push_str(&serde_json::to_string(&compact).unwrap());
+        jsonl.push('\n');
+    }
+    jsonl
+}
+
+/// Generate JSONL for a bar slide scenario (bar moves from fret_start to fret_end).
+fn generate_jsonl_bar_slide(
+    fret_start: f32,
+    fret_end: f32,
+    active_strings: &[usize],
+    n_ticks: u32,
+) -> String {
+    let copedant = buddy_emmons_e9();
+    let engine = CopedantEngine::new(buddy_emmons_e9());
+    let sr = 48000u32;
+    let samples_per_tick = sr / 1000;
+    let mut events = Vec::new();
+    let mut sample_counter: u64 = 0;
+
+    for tick in 0..n_ticks {
+        let ts = tick as u64 * 1000;
+        let t = tick as f32 / n_ticks as f32;
+        let fret = fret_start + (fret_end - fret_start) * t;
+
+        let sensor = sensor_with_bar_and_strings(ts, fret, active_strings, [0.0; 3], [0.0; 5], 0.7);
+        events.push(InputEvent::Sensor(sensor));
+
+        if !active_strings.is_empty() {
+            let open = engine.effective_open_pitches(&sensor);
+            let mut samples = vec![0.0f32; samples_per_tick as usize];
+            let amp = 0.3 / active_strings.len() as f32;
+            for &si in active_strings {
+                if si < 10 {
+                    let freq = midi_to_hz(open[si] + fret as f64);
+                    for (j, s) in samples.iter_mut().enumerate() {
+                        let t = (sample_counter + j as u64) as f64 / sr as f64;
+                        *s += amp * (2.0 * std::f64::consts::PI * freq * t).sin() as f32;
+                    }
+                }
+            }
+            sample_counter += samples_per_tick as u64;
+            events.push(InputEvent::Audio(AudioChunk {
+                timestamp_us: ts,
+                samples,
+                sample_rate: sr,
+            }));
+        }
+    }
+
+    let frames = run_pipeline(events, false);
+
+    let mut jsonl = String::new();
+    let header = build_jsonl_header(&copedant);
+    jsonl.push_str(&serde_json::to_string(&header).unwrap());
+    jsonl.push('\n');
+    for frame in &frames {
+        let compact = CompactFrame::from(frame);
+        jsonl.push_str(&serde_json::to_string(&compact).unwrap());
+        jsonl.push('\n');
+    }
+    jsonl
+}
+
+#[test]
+fn test_jsonl_roundtrip_silence() {
+    let jsonl = generate_jsonl(None, &[], [0.0; 3], [0.0; 5], 0.7, 20);
+    let reader = SessionReader::open(std::io::Cursor::new(jsonl)).unwrap();
+    assert_eq!(reader.header.format, "steel-capture");
+
+    let frames = reader.read_all();
+    assert!(!frames.is_empty(), "should have frames");
+    for f in &frames {
+        assert!(f.bar_position.is_none(), "no bar in silence");
+        assert!(f.string_active.iter().all(|&a| !a), "no strings active");
+        assert!((f.volume - 0.7).abs() < 0.01, "volume preserved");
+    }
+}
+
+#[test]
+fn test_jsonl_roundtrip_three_string_grip() {
+    let jsonl = generate_jsonl(
+        Some(5.0),
+        &[2, 3, 4],
+        [0.5, 0.0, 0.0], // pedal A at 50%
+        [0.0; 5],
+        0.8,
+        100,
+    );
+    let reader = SessionReader::open(std::io::Cursor::new(jsonl)).unwrap();
+    let frames = reader.read_all();
+    assert!(frames.len() >= 10, "need enough frames");
+
+    // Late frames should have converged
+    let late = &frames[frames.len() / 2..];
+    let has_bar = late.iter().any(|f| f.bar_position.is_some());
+    assert!(has_bar, "bar should be detected at fret 5");
+
+    let has_active = late
+        .iter()
+        .any(|f| f.string_active[2] || f.string_active[3] || f.string_active[4]);
+    assert!(has_active, "strings 3-4-5 should be active");
+
+    // Pitches should be in audible range
+    for f in late.iter().filter(|f| f.string_active.iter().any(|&a| a)) {
+        for (i, &hz) in f.string_pitches_hz.iter().enumerate() {
+            assert!(
+                hz > 50.0 && hz < 5000.0,
+                "string {} pitch {} out of range",
+                i,
+                hz
+            );
+        }
+    }
+}
+
+#[test]
+fn test_jsonl_roundtrip_bar_slide() {
+    let jsonl = generate_jsonl_bar_slide(3.0, 8.0, &[2, 3], 200);
+    let reader = SessionReader::open(std::io::Cursor::new(jsonl)).unwrap();
+    let frames = reader.read_all();
+    assert!(frames.len() >= 20, "need enough frames");
+
+    // Timestamps must be monotonically non-decreasing
+    for w in frames.windows(2) {
+        assert!(
+            w[1].timestamp_us >= w[0].timestamp_us,
+            "timestamps must be monotonic: {} < {}",
+            w[1].timestamp_us,
+            w[0].timestamp_us,
+        );
+    }
+
+    // Bar position should trend upward (3→8)
+    let with_bar: Vec<f32> = frames.iter().filter_map(|f| f.bar_position).collect();
+    if with_bar.len() >= 4 {
+        let first_quarter =
+            with_bar[..with_bar.len() / 4].iter().sum::<f32>() / (with_bar.len() / 4) as f32;
+        let last_quarter = with_bar[3 * with_bar.len() / 4..].iter().sum::<f32>()
+            / (with_bar.len() - 3 * with_bar.len() / 4) as f32;
+        assert!(
+            last_quarter > first_quarter,
+            "bar should move up: first_avg={:.1} last_avg={:.1}",
+            first_quarter,
+            last_quarter,
+        );
+    }
+}
+
+#[test]
+fn test_jsonl_roundtrip_header_fields() {
+    let jsonl = generate_jsonl(Some(3.0), &[3], [0.0; 3], [0.0; 5], 0.7, 10);
+    let reader = SessionReader::open(std::io::Cursor::new(jsonl)).unwrap();
+
+    assert_eq!(reader.header.format, "steel-capture");
+    assert_eq!(reader.header.rate_hz, 60);
+    assert_eq!(reader.header.copedant_name, "Buddy Emmons E9");
+    assert!(
+        reader.header.channels.len() >= 12,
+        "need ≥12 channel defs, got {}",
+        reader.header.channels.len(),
+    );
+
+    // Verify channel keys are present
+    let keys: Vec<&str> = reader
+        .header
+        .channels
+        .iter()
+        .filter_map(|c| c["key"].as_str())
+        .collect();
+    for expected in &[
+        "t", "p", "kl", "v", "bs", "bp", "bc", "bx", "hz", "sa", "at", "am",
+    ] {
+        assert!(keys.contains(expected), "missing channel key: {}", expected);
+    }
+}
+
+#[test]
+fn test_jsonl_reader_malformed_header() {
+    let result = SessionReader::open(std::io::Cursor::new("{\"not_a_format\":true}\n"));
+    assert!(result.is_err());
+
+    let result = SessionReader::open(std::io::Cursor::new("not json at all\n"));
+    assert!(result.is_err());
+
+    let result = SessionReader::open(std::io::Cursor::new(""));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_jsonl_reader_corrupted_frame() {
+    let copedant = buddy_emmons_e9();
+    let header = build_jsonl_header(&copedant);
+    let mut jsonl = serde_json::to_string(&header).unwrap() + "\n";
+
+    // Valid frame
+    let frame1 = mock_capture_frame(1000, Some(3.0), 0.7);
+    jsonl += &serde_json::to_string(&CompactFrame::from(&frame1)).unwrap();
+    jsonl += "\n";
+
+    // Corrupted line
+    jsonl += "{{totally broken json}}\n";
+
+    // Another valid frame
+    let frame2 = mock_capture_frame(2000, Some(5.0), 0.8);
+    jsonl += &serde_json::to_string(&CompactFrame::from(&frame2)).unwrap();
+    jsonl += "\n";
+
+    let reader = SessionReader::open(std::io::Cursor::new(jsonl)).unwrap();
+    let frames = reader.read_all();
+    assert_eq!(frames.len(), 2, "should skip corrupted line");
+    assert_eq!(frames[0].timestamp_us, 1000);
+    assert_eq!(frames[1].timestamp_us, 2000);
+    assert_eq!(frames[0].bar_position, Some(3.0));
+    assert_eq!(frames[1].bar_position, Some(5.0));
 }

@@ -104,13 +104,13 @@ cargo run --release --no-default-features -- --ws --calibration-file calibration
 ## Tests
 
 ```bash
-# Run all tests (47 total: 36 unit + 11 integration)
+# Run all tests (72 total: 44 unit + 28 integration)
 cargo test --no-default-features
 
-# With hardware feature (60 tests: 49 unit + 11 integration)
+# With hardware feature (85 tests: 57 unit + 28 integration)
 cargo test --no-default-features --features hardware
 
-# With calibration feature (51 tests)
+# With calibration feature (76 tests)
 cargo test --no-default-features --features calibration
 
 # Just unit tests
@@ -122,20 +122,24 @@ cargo test --no-default-features --test integration
 
 ### Test Coverage
 
-**Unit tests (36 base, +13 with `hardware` feature):**
+**Unit tests (44 base, +13 with `hardware` feature):**
 - `copedant` (14): MIDI/Hz conversion, open strings, all pedals (A/B/C), all levers (LKL/LKR/LKV/RKL/RKR), partial engagement, combinations (A+C), two-stop lever (RKR soft/hard)
 - `bar_sensor` (8): Hall sensor readings at various frets, interpolation accuracy, smoothing, edge cases
-- `string_detector` (7): Single string detection, 3-string grip, pedal interaction, silence, no-bar, attack-only-on-onset, release-then-reattack
+- `string_detector` (8): Single string detection, 3-string grip, pedal interaction, silence, no-bar, attack-only-on-onset, release-then-reattack, amplitude normalization
 - `bar_inference` (6): Goertzel frequency detection, sensor-only during silence, fused sensor+audio, pedal interaction, bar lift, silence+no-bar
+- `jsonl_reader` (7): Header parsing (valid, missing format, wrong format, empty), frame reading, malformed frame handling
 - `calibration` (1): Config roundtrip
 - `serial_reader` (13, `hardware` feature): Frame parsing, CRC validation, sync detection (start, middle, garbage, partial, empty), calibration clamping, channel mapping
 
-**Integration tests (11):**
+**Integration tests (28):**
 - Pipeline: basic grip, pedal pitch shift, attack timing, pedal-triggered attacks, silence/no-bar, volume independence
 - Audio detection validation against simulator ground truth
 - Per-string spectral resolution
 - Bar sensor to inference pipeline across frets 0-15
 - CaptureFrame + CompactFrame JSON serialization round-trip
+- JSONL header format, copedant embedding, channel definitions, compact frames, multi-frame streams
+- Hardware mode: audio-only string detection, bar sensor during silence, pedal attack with audio
+- JSONL round-trip: silence, three-string grip, bar slide, header fields, malformed header, corrupted frames
 
 **With `calibration` feature (+4):** threshold computation, overlap handling, noisy-signal floor
 
@@ -167,6 +171,7 @@ cargo test --no-default-features --test integration
 |--------|---------|
 | `types.rs` | Core data types: SensorFrame, AudioChunk, CaptureFrame, Copedant |
 | `copedant.rs` | E9 tuning model, pitch computation, bar position inference math |
+| `dsp.rs` | Shared DSP: Goertzel single-frequency magnitude, RMS, test signal generators |
 | `bar_inference.rs` | Fuses hall sensors + Goertzel spectral matching for bar position |
 | `bar_sensor.rs` | Hall sensor interpolation (4x SS49E at frets 0/5/10/15) |
 | `string_detector.rs` | Per-string onset/release via Goertzel at copedant-derived frequencies |
@@ -175,6 +180,7 @@ cargo test --no-default-features --test integration
 | `ws_server.rs` | Combined HTTP + WebSocket server for browser visualization |
 | `osc_sender.rs` | UDP OSC output for DAWs and synthesis environments |
 | `data_logger.rs` | Session recording (JSONL frames + raw audio) |
+| `jsonl_reader.rs` | JSONL session reader — parses recorded sessions back into CaptureFrames |
 | `console_display.rs` | ASCII terminal dashboard |
 | `webview_app.rs` | Native WebView GUI via wry/tao (loads the browser viz) |
 | `calibrator.rs` | Interactive per-string calibration from live audio |

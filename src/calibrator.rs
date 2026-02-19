@@ -9,7 +9,7 @@
 
 use crate::calibration::{Calibration, StringThreshold};
 use crate::copedant::{midi_to_hz, CopedantEngine};
-use crate::string_detector::goertzel_magnitude;
+use crate::dsp::goertzel_magnitude;
 use crate::types::{InputEvent, SensorFrame};
 use crossbeam_channel::Receiver;
 use log::{info, warn};

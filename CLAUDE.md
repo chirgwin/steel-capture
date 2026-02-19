@@ -9,7 +9,7 @@ The owner is Geoff, a composer and musician. He plays pedal steel and wants to c
 ## Commands
 
 ```bash
-cargo test --no-default-features        # Run all 47 tests (36 unit + 11 integration)
+cargo test --no-default-features        # Run all 72 tests (44 unit + 28 integration)
 cargo test --no-default-features --lib   # Unit tests only
 cargo test --no-default-features --test integration  # Integration tests only
 cargo build --no-default-features        # Headless build (no GUI dependency)
@@ -41,6 +41,7 @@ Simulator ──► InputEvent channel ──► Coordinator ──► CaptureFr
 |------|-------------|
 | `types.rs` | SensorFrame, AudioChunk, CaptureFrame, Copedant, BarState, SessionClock |
 | `copedant.rs` | Buddy Emmons E9 tuning definition, CopedantEngine (pitch computation, bar inference math) |
+| `dsp.rs` | Shared DSP: Goertzel single-frequency magnitude, RMS, test signal generators |
 | `bar_inference.rs` | Fuses hall sensor + audio spectral matching for bar position |
 | `bar_sensor.rs` | Hall sensor interpolation (4× SS49E at frets 0/5/10/15), magnetic field model |
 | `string_detector.rs` | Per-string onset/release detection via Goertzel at copedant-derived frequencies |
@@ -49,6 +50,7 @@ Simulator ──► InputEvent channel ──► Coordinator ──► CaptureFr
 | `ws_server.rs` | Combined HTTP + WebSocket server. Serves visualization.html + static files, streams JSON |
 | `osc_sender.rs` | UDP OSC output for DAWs/synthesis |
 | `data_logger.rs` | Session recording (JSONL frames + raw audio binary) |
+| `jsonl_reader.rs` | JSONL session reader — parses recorded sessions back into CaptureFrames |
 | `console_display.rs` | ASCII terminal dashboard |
 | `webview_app.rs` | Native WebView GUI via wry/tao (optional, behind `gui` feature flag) |
 | `serial_reader.rs` | Teensy USB serial protocol (behind `hardware` feature flag) |
@@ -98,7 +100,7 @@ RKR is a two-stop lever: soft stop at ~50% engagement, hard stop at 100%. Modele
 ## Current State (February 2026)
 
 **Working:**
-- Full Rust pipeline, 47 tests (0 warnings)
+- Full Rust pipeline, 72 tests (0 warnings)
 - All modules compile and integrate
 - Simulator runs the demo sequence (~15s of realistic gestures)
 - Browser viz connects and displays

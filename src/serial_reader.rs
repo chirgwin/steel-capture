@@ -33,7 +33,10 @@ pub struct Calibration {
 impl Default for Calibration {
     fn default() -> Self {
         Self {
-            // Default: assume full ADC range. Real calibration should be done
+            // Default range: 200–3800 out of 0–4095 (Teensy 12-bit ADC).
+            // Margins avoid noise near rails: SS49E outputs ~0.2V at rest
+            // (ADC ~200) and most hall/pot sensors don't reach full 3.3V
+            // (ADC ~3800). Real calibration should replace these per-channel
             // by observing actual sensor values at rest and fully engaged.
             ranges: [(200, 3800); NUM_CHANNELS],
         }
@@ -114,7 +117,7 @@ impl SerialReader {
                                 Ok(sensor) => {
                                     let _ = self.tx.send(InputEvent::Sensor(sensor));
                                     frame_count += 1;
-                                    if frame_count % 5000 == 0 {
+                                    if frame_count.is_multiple_of(5000) {
                                         info!(
                                             "Serial: {} frames, {} errors",
                                             frame_count, error_count
@@ -146,13 +149,7 @@ impl SerialReader {
 }
 
 fn find_sync(buf: &[u8]) -> Option<usize> {
-    for i in 0..buf.len().saturating_sub(1) {
-        if buf[i] == 0xEF && buf[i + 1] == 0xBE {
-            // Little-endian 0xBEEF
-            return Some(i);
-        }
-    }
-    None
+    (0..buf.len().saturating_sub(1)).find(|&i| buf[i] == 0xEF && buf[i + 1] == 0xBE)
 }
 
 fn parse_frame(
@@ -181,8 +178,8 @@ fn parse_frame(
 
     // ADC values (13 channels, u16 each)
     let mut raw = [0u16; NUM_CHANNELS];
-    for i in 0..NUM_CHANNELS {
-        raw[i] = cursor
+    for ch in raw.iter_mut() {
+        *ch = cursor
             .read_u16::<LittleEndian>()
             .map_err(|e| e.to_string())?;
     }

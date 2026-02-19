@@ -1,4 +1,5 @@
 use crate::copedant::{midi_to_hz, CopedantEngine};
+use crate::dsp::{compute_rms, goertzel_magnitude};
 use crate::types::*;
 use log::trace;
 
@@ -30,8 +31,11 @@ use log::trace;
 /// - Fast picking rolls (<5ms between attacks) may not resolve at the
 ///   ~42ms analysis rate.
 pub struct StringDetector {
-    /// Per-string smoothed energy (0.0–1.0 normalized)
+    /// Per-string smoothed Goertzel energy (raw, unnormalized)
     energy: [f64; 10],
+    /// Per-string peak energy seen, for normalizing amplitude to 0.0-1.0.
+    /// Slowly decays toward current max to adapt to different signal levels.
+    peak_energy: [f64; 10],
     /// Per-string active state
     pub active: [bool; 10],
     /// Per-string onset thresholds — energy above this → string active
@@ -56,6 +60,7 @@ impl StringDetector {
     pub fn new() -> Self {
         Self {
             energy: [0.0; 10],
+            peak_energy: [0.01; 10],
             active: [false; 10],
             onset_threshold: [0.02; 10],
             release_threshold: [0.008; 10],
@@ -130,7 +135,8 @@ impl StringDetector {
         let n = samples.len();
         let sr = self.sample_rate as f64;
 
-        // Check if there's any signal at all
+        // Global silence threshold. RMS below this is indistinguishable from
+        // quantization/electronic noise in a typical audio interface.
         let rms = compute_rms(samples);
         if rms < 0.003 {
             // Silence — all strings inactive
@@ -166,7 +172,9 @@ impl StringDetector {
                 0.0
             };
 
-            // Combined energy: fundamental + weighted harmonic
+            // Combined energy: fundamental + weighted 2nd harmonic.
+            // The 0.3 weight is empirical: harmonic confirms string identity
+            // without dominating (real strings have strong 2nd harmonics, noise does not).
             let raw_energy = mag + 0.3 * mag2;
 
             // Normalize by number of samples for consistent thresholds
@@ -175,6 +183,14 @@ impl StringDetector {
             // Smooth the energy
             self.energy[si] =
                 self.energy[si] * self.smoothing + normalized * (1.0 - self.smoothing);
+
+            // Track peak energy for normalizing amplitude to 0.0-1.0.
+            // Adapts over ~3.6s half-life at ~24Hz analysis rate.
+            if self.energy[si] > self.peak_energy[si] {
+                self.peak_energy[si] = self.energy[si];
+            } else {
+                self.peak_energy[si] = (self.peak_energy[si] * 0.992).max(0.01);
+            }
 
             // Threshold with hysteresis (per-string calibrated values)
             if self.active[si] {
@@ -208,23 +224,19 @@ impl StringDetector {
         (self.active, attacks, self.amplitude())
     }
 
-    /// Per-string amplitude as f32, cast from the internal f64 energy array.
+    /// Per-string amplitude normalized to 0.0-1.0 (energy / peak_energy).
     fn amplitude(&self) -> [f32; 10] {
         let mut out = [0.0f32; 10];
         for (i, val) in out.iter_mut().enumerate() {
-            *val = self.energy[i] as f32;
+            *val = (self.energy[i] / self.peak_energy[i]).clamp(0.0, 1.0) as f32;
         }
         out
-    }
-
-    /// Get current per-string energy levels (for visualization).
-    pub fn energies(&self) -> &[f64; 10] {
-        &self.energy
     }
 
     /// Reset all state (e.g., on session restart).
     pub fn reset(&mut self) {
         self.energy = [0.0; 10];
+        self.peak_energy = [0.01; 10];
         self.active = [false; 10];
         self.audio_buf.clear();
         self.samples_since_analysis = 0;
@@ -237,60 +249,14 @@ impl Default for StringDetector {
     }
 }
 
-/// Goertzel algorithm: compute magnitude of a single frequency bin.
-pub(crate) fn goertzel_magnitude(samples: &[f32], freq: f64, sample_rate: f64, n: usize) -> f64 {
-    let k = (freq * n as f64 / sample_rate).round();
-    let w = 2.0 * std::f64::consts::PI * k / n as f64;
-    let coeff = 2.0 * w.cos();
-    let mut s1 = 0.0f64;
-    let mut s2 = 0.0f64;
-    for sample in samples.iter().take(n) {
-        let s0 = *sample as f64 + coeff * s1 - s2;
-        s2 = s1;
-        s1 = s0;
-    }
-    (s1 * s1 + s2 * s2 - coeff * s1 * s2).abs().sqrt()
-}
-
-fn compute_rms(samples: &[f32]) -> f32 {
-    if samples.is_empty() {
-        return 0.0;
-    }
-    let sum: f32 = samples.iter().map(|s| s * s).sum();
-    (sum / samples.len() as f32).sqrt()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::copedant::buddy_emmons_e9;
-    use std::f64::consts::PI;
+    use crate::dsp::test_helpers::{multi_sine, sine_wave};
 
     fn make_engine() -> CopedantEngine {
         CopedantEngine::new(buddy_emmons_e9())
-    }
-
-    /// Generate a sine wave at the given frequency.
-    fn sine(freq: f64, sr: u32, ms: u32) -> Vec<f32> {
-        let n = (sr as u64 * ms as u64 / 1000) as usize;
-        (0..n)
-            .map(|i| (0.7 * (2.0 * PI * freq * i as f64 / sr as f64).sin()) as f32)
-            .collect()
-    }
-
-    /// Generate a mix of sine waves (equal amplitude).
-    fn multi_sine(freqs: &[f64], sr: u32, ms: u32) -> Vec<f32> {
-        let n = (sr as u64 * ms as u64 / 1000) as usize;
-        let amp = 0.5 / freqs.len() as f64;
-        (0..n)
-            .map(|i| {
-                let t = i as f64 / sr as f64;
-                freqs
-                    .iter()
-                    .map(|&f| amp * (2.0 * PI * f * t).sin())
-                    .sum::<f64>() as f32
-            })
-            .collect()
     }
 
     /// Feed audio and run detection, returning (active, attacks).
@@ -322,7 +288,7 @@ mod tests {
 
         // String 3 (idx 2) = G#4 = MIDI 68. At fret 3 → B4 = MIDI 71
         let freq = midi_to_hz(68.0 + 3.0);
-        let samples = sine(freq, 48000, 100);
+        let samples = sine_wave(freq, 0.7, 48000, 100);
 
         let (active, attacks, _) =
             feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
@@ -356,7 +322,7 @@ mod tests {
             .iter()
             .map(|&si| midi_to_hz(open[si] + 3.0))
             .collect();
-        let samples = multi_sine(&freqs, 48000, 100);
+        let samples = multi_sine(&freqs, 0.17, 48000, 100);
 
         let (active, _attacks, _) =
             feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
@@ -376,7 +342,7 @@ mod tests {
         // Open C#4 (MIDI 61) + 5 frets = F#4 (MIDI 66)
         let open = engine.effective_open_pitches(&sensor);
         let freq = midi_to_hz(open[4] + 5.0);
-        let samples = sine(freq, 48000, 100);
+        let samples = sine_wave(freq, 0.7, 48000, 100);
 
         let (active, _, _) =
             feed_and_detect(&mut det, &samples, 48000, &sensor, Some(5.0), &engine);
@@ -405,7 +371,7 @@ mod tests {
         let mut det = StringDetector::new();
         let sensor = SensorFrame::at_rest(0);
 
-        let samples = sine(440.0, 48000, 100);
+        let samples = sine_wave(440.0, 0.7, 48000, 100);
         let (active, _, _) = feed_and_detect(&mut det, &samples, 48000, &sensor, None, &engine);
         assert!(
             active.iter().all(|&a| !a),
@@ -421,7 +387,7 @@ mod tests {
 
         let open = engine.effective_open_pitches(&sensor);
         let freq = midi_to_hz(open[3] + 3.0); // string 4 at fret 3
-        let samples = sine(freq, 48000, 100);
+        let samples = sine_wave(freq, 0.7, 48000, 100);
 
         // First detection: should have attack
         let (_, attacks1, _) =
@@ -445,7 +411,7 @@ mod tests {
         let freq = midi_to_hz(open[3] + 3.0);
 
         // Attack
-        let samples = sine(freq, 48000, 100);
+        let samples = sine_wave(freq, 0.7, 48000, 100);
         let (_, attacks1, _) =
             feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(attacks1[3]);
@@ -462,5 +428,30 @@ mod tests {
         let (_, attacks3, _) =
             feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
         assert!(attacks3[3], "should register as new attack after release");
+    }
+
+    #[test]
+    fn test_amplitude_normalized_range() {
+        let engine = make_engine();
+        let mut det = StringDetector::new();
+        let sensor = SensorFrame::at_rest(0);
+        let open = engine.effective_open_pitches(&sensor);
+        let freq = midi_to_hz(open[3] + 3.0);
+        let samples = sine_wave(freq, 0.7, 48000, 100);
+
+        let (_, _, amplitude) =
+            feed_and_detect(&mut det, &samples, 48000, &sensor, Some(3.0), &engine);
+
+        for &a in &amplitude {
+            assert!(
+                (0.0..=1.0).contains(&a),
+                "amplitude {} out of [0,1] range",
+                a
+            );
+        }
+        assert!(
+            amplitude[3] > 0.0,
+            "active string should have positive amplitude"
+        );
     }
 }
