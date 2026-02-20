@@ -47,6 +47,7 @@ Simulator ──► InputEvent channel ──► Coordinator ──► CaptureFr
 | `string_detector.rs` | Per-string onset/release detection via Goertzel at copedant-derived frequencies |
 | `coordinator.rs` | Central pipeline: receives InputEvents, runs inference + detection, emits CaptureFrames |
 | `simulator.rs` | Generates synthetic sensor data + matching audio. Gesture-based demo sequence |
+| `wav_player.rs` | Streams a WAV file as audio input (for testing with real recordings) |
 | `ws_server.rs` | Combined HTTP + WebSocket server. Serves visualization.html + static files, streams JSON |
 | `osc_sender.rs` | UDP OSC output for DAWs/synthesis |
 | `data_logger.rs` | Session recording (JSONL frames + raw audio binary) |

@@ -71,6 +71,9 @@ cargo run --release --no-default-features -- --log-data --output-dir ./sessions
 # OSC output (e.g., to Csound, SuperCollider, Max)
 cargo run --release --no-default-features -- --osc --osc-target 127.0.0.1:9000
 
+# Trace raw input events to stderr (same format as hardware)
+cargo run --release --no-default-features -- --trace-inputs --demo basic
+
 # Combine everything
 cargo run --release --no-default-features -- --ws --osc --log-data --console --demo improv
 ```
@@ -85,7 +88,10 @@ cargo run --release --no-default-features -- --ws --osc --log-data --console --d
 
 ### Hardware (with Teensy + sensors)
 ```bash
-cargo run --release --features hardware -- --port /dev/ttyACM0 --ws --detect-strings
+cargo run --release --features hardware -- --simulate false --port /dev/ttyACM0 --ws --detect-strings
+
+# With raw input tracing (see every sensor frame on stderr)
+cargo run --release --features hardware -- --simulate false --port /dev/ttyACM0 --ws --trace-inputs
 ```
 
 ### Calibration (requires `calibration` feature)
@@ -177,6 +183,7 @@ cargo test --no-default-features --test integration
 | `string_detector.rs` | Per-string onset/release via Goertzel at copedant-derived frequencies |
 | `coordinator.rs` | Central pipeline: receives inputs, runs inference, produces CaptureFrames |
 | `simulator.rs` | Generates synthetic sensor data + matching audio (sine waves) |
+| `wav_player.rs` | Streams a WAV file as audio input (for testing with real recordings) |
 | `ws_server.rs` | Combined HTTP + WebSocket server for browser visualization |
 | `osc_sender.rs` | UDP OSC output for DAWs and synthesis environments |
 | `data_logger.rs` | Session recording (JSONL frames + raw audio) |
@@ -269,7 +276,7 @@ First line is a self-describing header with copedant, channel definitions, and s
 steel-capture [OPTIONS]
 
 Input:
-      --simulate                Run in simulator mode [default: true]
+      --simulate [true|false]    Run in simulator mode [default: true]
       --port <PORT>             Serial port for Teensy [default: /dev/ttyACM0]
       --demo <NAME>             Simulator demo: basic, e9, or improv [default: basic]
       --sensor-rate <HZ>        Sensor sample rate [default: 1000]
@@ -287,6 +294,7 @@ Output:
       --output-dir <DIR>        Session output directory [default: ./sessions]
       --console                 Enable console TUI
       --display-hz <HZ>         Console refresh rate [default: 20]
+      --trace-inputs            Trace raw InputEvents to stderr (for hardware debugging)
 
 GUI:
       --no-gui                  Disable native WebView window

@@ -29,8 +29,9 @@ use std::thread;
 #[command(name = "steel-capture")]
 #[command(about = "Pedal steel guitar expression capture system")]
 struct Cli {
-    /// Run in simulator mode (no hardware required)
-    #[arg(long, default_value_t = true)]
+    /// Run in simulator mode (no hardware required).
+    /// Use --simulate false for hardware mode.
+    #[arg(long, default_value_t = true, num_args = 0..=1, default_missing_value = "true")]
     simulate: bool,
 
     /// Serial port for Teensy (e.g., /dev/ttyACM0)
@@ -94,6 +95,11 @@ struct Cli {
     /// Suppress auto-opening the browser when --ws is active.
     #[arg(long)]
     no_open: bool,
+
+    /// Trace raw InputEvents to stderr (sensor frames + audio chunks).
+    /// Shows the same data regardless of simulator or hardware source.
+    #[arg(long)]
+    trace_inputs: bool,
 
     /// Stream a WAV file as the audio input instead of simulator-generated audio.
     /// Enables audio-based string detection automatically.
@@ -205,8 +211,8 @@ fn main() {
     }
     info!("═══════════════════════════════════════════════");
 
-    // Channel: inputs → coordinator
-    let (input_tx, input_rx) = bounded::<InputEvent>(4096);
+    // Channel: inputs → coordinator (or relay if tracing)
+    let (input_tx, input_rx_raw) = bounded::<InputEvent>(4096);
 
     // Channels: coordinator → consumers
     let mut frame_txs: Vec<crossbeam_channel::Sender<CaptureFrame>> = Vec::new();
@@ -215,6 +221,83 @@ fn main() {
     let (audio_log_tx, audio_log_rx) = unbounded::<AudioChunk>();
 
     let mut handles = Vec::new();
+
+    // ─── Input trace relay (opt-in, for hardware debugging) ──────────
+    let input_rx = if cli.trace_inputs {
+        let (fwd_tx, fwd_rx) = bounded::<InputEvent>(4096);
+        let trace_rx = input_rx_raw;
+        handles.push(
+            thread::Builder::new()
+                .name("trace-inputs".into())
+                .spawn(move || {
+                    use std::io::Write;
+                    let stderr = std::io::stderr();
+                    let mut audio_count: u64 = 0;
+                    for event in trace_rx.iter() {
+                        match &event {
+                            InputEvent::Sensor(sf) => {
+                                let secs = sf.timestamp_us as f64 / 1_000_000.0;
+                                let active: Vec<usize> = sf
+                                    .string_active
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, &a)| a)
+                                    .map(|(i, _)| i + 1)
+                                    .collect();
+                                let active_str = if active.is_empty() {
+                                    "---".to_string()
+                                } else {
+                                    active
+                                        .iter()
+                                        .map(|s| s.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(",")
+                                };
+                                let _ = writeln!(
+                                    stderr.lock(),
+                                    "[{:>8.3}s] SENSOR  P[{:.2} {:.2} {:.2}] KL[{:.2} {:.2} {:.2} {:.2} {:.2}] V={:.2} BAR[{:.2} {:.2} {:.2} {:.2}] str=[{}]",
+                                    secs,
+                                    sf.pedals[0], sf.pedals[1], sf.pedals[2],
+                                    sf.knee_levers[0], sf.knee_levers[1], sf.knee_levers[2],
+                                    sf.knee_levers[3], sf.knee_levers[4],
+                                    sf.volume,
+                                    sf.bar_sensors[0], sf.bar_sensors[1], sf.bar_sensors[2], sf.bar_sensors[3],
+                                    active_str,
+                                );
+                            }
+                            InputEvent::Audio(ac) => {
+                                audio_count += 1;
+                                // Print audio summary every 10th chunk to avoid flooding
+                                if audio_count.is_multiple_of(10) {
+                                    let secs = ac.timestamp_us as f64 / 1_000_000.0;
+                                    let peak = ac
+                                        .samples
+                                        .iter()
+                                        .map(|s| s.abs())
+                                        .fold(0.0f32, f32::max);
+                                    let _ = writeln!(
+                                        stderr.lock(),
+                                        "[{:>8.3}s] AUDIO   {} samples @ {}kHz  peak={:.3}",
+                                        secs,
+                                        ac.samples.len(),
+                                        ac.sample_rate / 1000,
+                                        peak,
+                                    );
+                                }
+                            }
+                        }
+                        // Forward to coordinator
+                        if fwd_tx.send(event).is_err() {
+                            break;
+                        }
+                    }
+                })
+                .unwrap(),
+        );
+        fwd_rx
+    } else {
+        input_rx_raw
+    };
 
     // ─── Console display (opt-in, for headless/debug) ───────────────
     if cli.console {
