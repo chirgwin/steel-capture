@@ -72,7 +72,7 @@ eq(m2n(h2m(hzP3[3])),'F#4','Str 4: E4→F#4');
 eq(m2n(h2m(hzP3[4])),'C#4','Str 5: B3→C#4');
 
 // ── 6. Lever changes ──
-describe('Lever LKL1: strings 4,8 → +1 semitone');
+describe('Lever LKL: strings 4,8 → +1 semitone');
 var hzLKL=cpd(null,[0,0,0],[1,0,0,0,0]);
 eq(m2n(h2m(hzLKL[3])),'F4','Str 4: E4→F4');
 eq(m2n(h2m(hzLKL[7])),'F3','Str 8: E3→F3');

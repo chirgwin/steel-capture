@@ -40,7 +40,7 @@ Simulator ──► InputEvent channel ──► Coordinator ──► CaptureFr
 | File | What it does |
 |------|-------------|
 | `types.rs` | SensorFrame, AudioChunk, CaptureFrame, Copedant, BarState, SessionClock |
-| `copedant.rs` | Buddy Emmons E9 tuning definition, CopedantEngine (pitch computation, bar inference math) |
+| `copedant.rs` | Geoff Derby E9 tuning definition (Chirgwin-variant Emmons), CopedantEngine (pitch computation, bar inference math) |
 | `dsp.rs` | Shared DSP: Goertzel single-frequency magnitude, RMS, test signal generators |
 | `bar_inference.rs` | Fuses hall sensor + audio spectral matching for bar position |
 | `bar_sensor.rs` | Hall sensor interpolation (4× SS49E at frets 0/5/10/15), magnetic field model |
@@ -61,7 +61,7 @@ Simulator ──► InputEvent channel ──► Coordinator ──► CaptureFr
 | `lib.rs` | Public module exports (enables integration tests) |
 | `main.rs` | CLI (clap), thread spawning, channel wiring |
 
-## E9 Copedant (Buddy Emmons)
+## E9 Copedant (Geoff Derby / Chirgwin variant)
 
 Open tuning (string 1 = far from player):
 ```
@@ -69,9 +69,11 @@ Open tuning (string 1 = far from player):
 ```
 
 Pedals: A (str5,10 +2), B (str3,6 +1), C (str4,5 +2)
-Levers: LKL (str4,8 +1), LKR (str4,5,8 -1), LKV (str5,10 -1), RKL (str2 +1, str6 -2), RKR (str2 -2, str9 -1)
+Levers: LKL (str4,8 +1), LKR (str4,8 -1), LKV (str5,10 -1), RKL (str1,7 +2, str2 +1), RKR (str2 -2, str6 -2, str9 -1)
 
-RKR is a two-stop lever: soft stop at ~50% engagement, hard stop at 100%. Modeled via proportional engagement.
+RKR is a two-stop lever: soft stop at ~50% engagement (str2 -1), hard stop at 100% (str2 -2). Modeled via proportional engagement.
+
+Differences from standard Buddy Emmons: LKR drops str5; RKL adds str1/str7 +2 and moves str6 -2 to RKR.
 
 ## Decisions Made
 

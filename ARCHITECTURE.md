@@ -13,7 +13,7 @@ cargo run --release --no-default-features -- --ws --demo improv
 cargo run --release --no-default-features -- --console --demo basic
 
 # With hardware (when Teensy is connected)
-cargo run --release --features hardware -- --port /dev/ttyACM0 --ws --detect-strings
+cargo run --release --features hardware -- --simulate false --port /dev/ttyACM0 --ws --detect-strings
 ```
 
 The native GUI starts a WebView window that loads `http://localhost:8080` — the same page you'd see in a browser. The WS server auto-starts when the GUI is active; `--ws` adds external browser access.
@@ -76,6 +76,7 @@ CaptureFrame {
     string_pitches_hz: [f64; 10],  // computed pitch per string
     string_active: [bool; 10],     // which strings are sounding
     attacks: [bool; 10],           // NEW NOTE events this frame
+    string_amplitude: [f32; 10],   // per-string energy, normalized 0.0–1.0
 }
 ```
 
@@ -127,22 +128,22 @@ Handled entirely in software via constrained spectral analysis. Because the cope
 3. Smoothed energy tracking with hysteresis onset/release thresholds
 4. Reports `(string_active[10], attacks[10])` per analysis frame
 
-Future hardware upgrade path: per-string piezos near the bridge for sub-ms attack timing if the spectral approach proves insufficient for fast picking.
+Future hardware upgrade paths (piezos, IR, per-string hall sensors) are documented in `HARDWARE.md`.
 
 
-## Copedant (Buddy Emmons E9 Standard)
+## Copedant (Geoff Derby E9 — Chirgwin variant)
 
-| Str | Open  | A     | B     | C     | LKL  | LKR  | RKL  | RKR  |
-|-----|-------|-------|-------|-------|------|------|------|------|
-|  1  | F#4   |       |       |       |      |      | +1   |      |
-|  2  | D#4   |       |       |       |      |      |      | +2   |
-|  3  | G#4   |       | +1(A) |       | -1   | +1   |      |      |
-|  4  | E4    |       |       | +2(F#)|      |      |      |      |
-|  5  | B3    | +2(C#)|       | +2(C#)|      |      |      |      |
-|  6  | G#3   |       | +1(A) |       |      |      |      |      |
-|  7  | F#3   |       |       |       |      |      |      |      |
-|  8  | E3    |       |       |       | -1   | +1   |      |      |
-|  9  | D3    |       |       |       |      |      |      |      |
-| 10  | B2    | +2(C#)|       |       |      |      |      |      |
+| Str | Open  | A      | B      | C      | LKL  | LKR  | LKV  | RKL  | RKR  |
+|-----|-------|--------|--------|--------|------|------|------|------|------|
+|  1  | F#4   |        |        |        |      |      |      | +2   |      |
+|  2  | D#4   |        |        |        |      |      |      | +1   | -2   |
+|  3  | G#4   |        | +1(A)  |        |      |      |      |      |      |
+|  4  | E4    |        |        | +2(F#) | +1   | -1   |      |      |      |
+|  5  | B3    | +2(C#) |        | +2(C#) |      |      | -1   |      |      |
+|  6  | G#3   |        | +1(A)  |        |      |      |      |      | -2   |
+|  7  | F#3   |        |        |        |      |      |      | +2   |      |
+|  8  | E3    |        |        |        | +1   | -1   |      |      |      |
+|  9  | D3    |        |        |        |      |      |      |      | -1   |
+| 10  | B2    | +2(C#) |        |        |      |      | -1   |      |      |
 
 Pitch = open_midi + bar_fret + Σ(pedal_delta × engagement) + Σ(lever_delta × engagement)

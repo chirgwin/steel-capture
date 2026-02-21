@@ -202,7 +202,7 @@ impl Coordinator {
     }
 }
 
-/// Maps each pedal to the strings it affects (from Buddy Emmons E9 copedant).
+/// Maps each pedal to the strings it affects (from Geoff Derby E9 copedant).
 fn pedal_string_map() -> [[bool; 10]; 3] {
     [
         // Pedal A: strings 5,10
@@ -227,21 +227,21 @@ fn lever_string_map() -> [[bool; 10]; 5] {
         [
             false, false, false, true, false, false, false, true, false, false,
         ],
-        // LKR: strings 4,5,8
+        // LKR: strings 4,8
         [
-            false, false, false, true, true, false, false, true, false, false,
+            false, false, false, true, false, false, false, true, false, false,
         ],
         // LKV: strings 5,10
         [
             false, false, false, false, true, false, false, false, false, true,
         ],
-        // RKL: strings 2,6
+        // RKL: strings 1,2,7
         [
-            false, true, false, false, false, true, false, false, false, false,
+            true, true, false, false, false, false, true, false, false, false,
         ],
-        // RKR: strings 2,9
+        // RKR: strings 2,6,9
         [
-            false, true, false, false, false, false, false, false, true, false,
+            false, true, false, false, false, true, false, false, true, false,
         ],
     ]
 }

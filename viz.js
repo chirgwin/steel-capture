@@ -16,9 +16,9 @@ var CFG={
     open_notes:['F#4','D#4','G#4','E4','B3','G#3','F#3','E3','D3','B2'],
     open_midi:[66,63,68,64,59,56,54,52,50,47],
     pedal_names:['P1','P2','P3'],
-    lever_names:['LKL1','LKV','LKR','RKL','RKR'],
+    lever_names:['LKL','LKV','LKR','RKL','RKR'],
     pedal_changes:{P1:[[4,2],[9,2]],P2:[[2,1],[5,1]],P3:[[3,2],[4,2]]},
-    lever_changes:{LKL1:[[3,1],[7,1]],LKV:[[4,-1],[9,-1]],LKR:[[3,-1],[7,-1]],RKL:[[0,2],[1,1],[6,2]],RKR:[[1,-1],[5,-2],[8,-1]]}
+    lever_changes:{LKL:[[3,1],[7,1]],LKV:[[4,-1],[9,-1]],LKR:[[3,-1],[7,-1]],RKL:[[0,2],[1,1],[6,2]],RKR:[[1,-1],[5,-2],[8,-1]]}
   },
   instrument:{
     sensor_positions_fret:[0,5,10,15],
@@ -61,7 +61,7 @@ var PNM,LNM;
 // Standard E9 tab notation: P1=A, P2=B, P3=C
 var TAB_PED=['A','B','C','D','E','F','G','H'];
 // Standard E9 knee lever single-letter codes (Warnock E9 chord chart):
-//   F = LKL1 (left knee left — raises str4, str8 +1 semitone)
+//   F = LKL (left knee left — raises str4, str8 +1 semitone)
 //   E = LKR  (left knee right — lowers str4, str8 -1)
 //   LKV = no universally agreed single letter in most charts
 //   D = RKL / RKR in some charts

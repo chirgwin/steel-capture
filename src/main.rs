@@ -3,7 +3,7 @@ use steel_capture::calibration::Calibration;
 use steel_capture::calibrator::Calibrator;
 use steel_capture::console_display;
 use steel_capture::coordinator;
-use steel_capture::copedant::buddy_emmons_e9;
+use steel_capture::copedant::geoff_derby_e9;
 #[cfg(feature = "calibration")]
 use steel_capture::copedant::CopedantEngine;
 use steel_capture::data_logger;
@@ -165,7 +165,7 @@ fn main() {
         .init();
 
     let cli = Cli::parse();
-    let copedant = buddy_emmons_e9();
+    let copedant = geoff_derby_e9();
     let clock = SessionClock::new();
 
     // ─── Calibration mode (--features calibration) ────────────────

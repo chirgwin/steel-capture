@@ -121,25 +121,25 @@ pub fn hz_to_midi(hz: f64) -> f64 {
     69.0 + 12.0 * (hz / 440.0).log2()
 }
 
-/// Buddy Emmons E9 copedant.
+/// Chirgwin-variant Buddy Emmons E9 copedant ("Geoff Derby E9").
 ///
-/// Source: b0b.com/wp/copedents/buddy-emmons-e9th/ (primary)
-///         Wikipedia "Copedent" article, adapted from GFI Music Company.
+/// Based on Buddy Emmons E9 with the following lever modifications:
+///   - LKL:  str4,8 +1 (same as standard)
+///   - LKR:  str4,8 -1 (standard also lowers str5; this setup does not)
+///   - LKV:  str5,10 -1 (same as standard)
+///   - RKL:  str1,7 +2, str2 +1 (std has str2 +1, str6 -2; adds str1/str7, moves str6 to RKR)
+///   - RKR:  str2 -2 (two-stop D/C#), str6 -2, str9 -1 (std has str2 -2, str9 -1; adds str6)
 ///
 /// Open tuning (string 1=far from player, string 10=near):
 ///   1:F#4  2:D#4  3:G#4  4:E4  5:B3  6:G#3  7:F#3  8:E3  9:D3  10:B2
 ///
-/// Per b0b.com: Buddy's copedent is "very typical of how most new guitars
-/// are configured today, except for the lack of a 1st string raise on RKL."
-/// We follow Buddy's actual setup (no str1 raise on RKL).
-///
 /// RKR has a two-stop mechanism:
-///   Soft stop (-1): str2 D#→D, str9 D→C#
-///   Hard stop (-2): str2 D#→C#, str9 D→C# (same)
-/// We model full engagement as the hard stop for now.
-pub fn buddy_emmons_e9() -> Copedant {
+///   Soft stop (-1): str2 D#->D, str6 G#->F#, str9 D->C#
+///   Hard stop (-2): str2 D#->C#, str6 G#->F# (same), str9 D->C# (same)
+/// We model full engagement as the hard stop.
+pub fn geoff_derby_e9() -> Copedant {
     Copedant {
-        name: "Buddy Emmons E9".to_string(),
+        name: "Geoff Derby E9".to_string(),
 
         // MIDI note numbers. String 1 is index 0.
         //       str1   str2   str3   str4   str5   str6   str7   str8   str9  str10
@@ -147,82 +147,86 @@ pub fn buddy_emmons_e9() -> Copedant {
         open_strings: [66.0, 63.0, 68.0, 64.0, 59.0, 56.0, 54.0, 52.0, 50.0, 47.0],
 
         pedals: vec![
-            // Pedal A (P1): raises str5 and str10 by 2 semitones (B→C#)
+            // Pedal A (P1): raises str5 and str10 by 2 semitones (B->C#)
             ChangeDef {
                 name: "A".into(),
                 changes: vec![
-                    (4, 2.0), // str5: B3 → C#4
-                    (9, 2.0), // str10: B2 → C#3
+                    (4, 2.0), // str5: B3 -> C#4
+                    (9, 2.0), // str10: B2 -> C#3
                 ],
             },
-            // Pedal B (P2): raises str3 and str6 by 1 semitone (G#→A)
+            // Pedal B (P2): raises str3 and str6 by 1 semitone (G#->A)
             ChangeDef {
                 name: "B".into(),
                 changes: vec![
-                    (2, 1.0), // str3: G#4 → A4
-                    (5, 1.0), // str6: G#3 → A3
+                    (2, 1.0), // str3: G#4 -> A4
+                    (5, 1.0), // str6: G#3 -> A3
                 ],
             },
-            // Pedal C (P3): raises str4 by 2 (E→F#) and str5 by 2 (B→C#)
+            // Pedal C (P3): raises str4 by 2 (E->F#) and str5 by 2 (B->C#)
             ChangeDef {
                 name: "C".into(),
                 changes: vec![
-                    (3, 2.0), // str4: E4 → F#4
-                    (4, 2.0), // str5: B3 → C#4
+                    (3, 2.0), // str4: E4 -> F#4
+                    (4, 2.0), // str5: B3 -> C#4
                 ],
             },
         ],
 
         levers: vec![
-            // LKL: raises str4 and str8 by 1 semitone (E→F)
+            // LKL: raises str4 and str8 by 1 semitone (E->F)
             ChangeDef {
                 name: "LKL".into(),
                 changes: vec![
-                    (3, 1.0), // str4: E4 → F4
-                    (7, 1.0), // str8: E3 → F3
+                    (3, 1.0), // str4: E4 -> F4
+                    (7, 1.0), // str8: E3 -> F3
                 ],
             },
-            // LKR: lowers str4, str5, and str8 by 1 semitone
+            // LKR: lowers str4 and str8 by 1 semitone (E->Eb)
             ChangeDef {
                 name: "LKR".into(),
                 changes: vec![
-                    (3, -1.0), // str4: E4 → D#4/Eb4
-                    (4, -1.0), // str5: B3 → A#3/Bb3
-                    (7, -1.0), // str8: E3 → D#3/Eb3
+                    (3, -1.0), // str4: E4 -> Eb4
+                    (7, -1.0), // str8: E3 -> Eb3
                 ],
             },
-            // LKV (vertical): lowers str5 and str10 by 1 semitone (B→A#/Bb)
+            // LKV (vertical): lowers str5 and str10 by 1 semitone (B->Bb)
             ChangeDef {
                 name: "LKV".into(),
                 changes: vec![
-                    (4, -1.0), // str5: B3 → A#3/Bb3
-                    (9, -1.0), // str10: B2 → A#2/Bb2
+                    (4, -1.0), // str5: B3 -> Bb3
+                    (9, -1.0), // str10: B2 -> Bb2
                 ],
             },
-            // RKL: raises str2 by 1 (D#→E), lowers str6 by 2 (G#→F#)
-            // NOTE: Buddy Emmons did NOT raise str1 on RKL.
-            //       Modern "Nashville standard" adds str1 +2 (F#→G#).
+            // RKL: raises str1,7 by 2 (F#->G#) and str2 by 1 (D#->E)
             ChangeDef {
                 name: "RKL".into(),
                 changes: vec![
-                    (1, 1.0),  // str2: D#4 → E4
-                    (5, -2.0), // str6: G#3 → F#3
+                    (0, 2.0), // str1: F#4 -> G#4
+                    (1, 1.0), // str2: D#4 -> E4
+                    (6, 2.0), // str7: F#3 -> G#3
                 ],
             },
             // RKR: Two-stop lever.
-            //   Soft stop: str2 -1 (D#→D), str9 -1 (D→C#)
-            //   Hard stop: str2 -2 (D#→C#), str9 -1 (same)
+            //   Soft stop: str2 -1 (D#->D), str6 -2 (G#->F#), str9 -1 (D->C#)
+            //   Hard stop: str2 -2 (D#->C#), str6 -2 (same), str9 -1 (same)
             // Modeled as: full engagement = hard stop.
-            // At ~50% engagement, str2 ≈ -1 (the soft stop feel).
+            // At ~50% engagement, str2 approx -1 (the soft stop feel).
             ChangeDef {
                 name: "RKR".into(),
                 changes: vec![
-                    (1, -2.0), // str2: D#4 → C#4 (full push)
-                    (8, -1.0), // str9: D3 → C#3
+                    (1, -2.0), // str2: D#4 -> C#4 (full push)
+                    (5, -2.0), // str6: G#3 -> F#3
+                    (8, -1.0), // str9: D3 -> C#3
                 ],
             },
         ],
     }
+}
+
+/// Alias for backward compatibility.
+pub fn buddy_emmons_e9() -> Copedant {
+    geoff_derby_e9()
 }
 
 #[cfg(test)]
@@ -230,7 +234,7 @@ mod tests {
     use super::*;
 
     fn engine() -> CopedantEngine {
-        CopedantEngine::new(buddy_emmons_e9())
+        CopedantEngine::new(geoff_derby_e9())
     }
 
     #[test]
@@ -276,7 +280,7 @@ mod tests {
         let e = engine();
         let s = SensorFrame::at_rest(0);
         // String 4 open = E4 = MIDI 64 = 329.63 Hz
-        // Bar at fret 3 → E4 + 3 = G4 = MIDI 67 = 392.00 Hz
+        // Bar at fret 3 -> E4 + 3 = G4 = MIDI 67 = 392.00 Hz
         let detected = midi_to_hz(67.0);
         let inferred = e.infer_bar_position(detected, 3, &s);
         assert!(inferred.is_some());
@@ -288,7 +292,7 @@ mod tests {
         let e = engine();
         let mut s = SensorFrame::at_rest(0);
         s.pedals[0] = 1.0; // Pedal A: string 5 is now C#4 (MIDI 61)
-                           // Bar at fret 5 → C#4 + 5 = F#4 = MIDI 66
+                           // Bar at fret 5 -> C#4 + 5 = F#4 = MIDI 66
         let detected = midi_to_hz(66.0);
         let inferred = e.infer_bar_position(detected, 4, &s);
         assert!(inferred.is_some());
@@ -300,7 +304,7 @@ mod tests {
         let e = engine();
         let s = SensorFrame::at_rest(0);
         let pitches = e.compute_pitches(&s, Some(3.0));
-        // String 4 at fret 3: E4+3 = G4 ≈ 392 Hz
+        // String 4 at fret 3: E4+3 = G4 ~= 392 Hz
         assert!((pitches[3] - 392.0).abs() < 1.0);
     }
 
@@ -322,11 +326,11 @@ mod tests {
         let mut s = SensorFrame::at_rest(0);
         s.knee_levers[1] = 1.0; // LKR fully engaged
         let open = e.effective_open_pitches(&s);
-        // str4: E4 (64) - 1 = D#4/Eb4 (63)
+        // str4: E4 (64) - 1 = Eb4 (63)
         assert!((open[3] - 63.0).abs() < 0.001);
-        // str5: B3 (59) - 1 = A#3/Bb3 (58)
-        assert!((open[4] - 58.0).abs() < 0.001);
-        // str8: E3 (52) - 1 = D#3/Eb3 (51)
+        // str5: B3 (59) unchanged (Chirgwin variant: LKR does not affect str5)
+        assert!((open[4] - 59.0).abs() < 0.001);
+        // str8: E3 (52) - 1 = Eb3 (51)
         assert!((open[7] - 51.0).abs() < 0.001);
     }
 
@@ -348,12 +352,14 @@ mod tests {
         let mut s = SensorFrame::at_rest(0);
         s.knee_levers[3] = 1.0; // RKL fully engaged
         let open = e.effective_open_pitches(&s);
-        // str1: F#4 (66) — NO CHANGE (Buddy Emmons didn't raise str1 on RKL)
-        assert!((open[0] - 66.0).abs() < 0.001);
+        // str1: F#4 (66) + 2 = G#4 (68)
+        assert!((open[0] - 68.0).abs() < 0.001);
         // str2: D#4 (63) + 1 = E4 (64)
         assert!((open[1] - 64.0).abs() < 0.001);
-        // str6: G#3 (56) - 2 = F#3 (54)
-        assert!((open[5] - 54.0).abs() < 0.001);
+        // str6: G#3 (56) unchanged (Chirgwin variant: str6 lower is on RKR)
+        assert!((open[5] - 56.0).abs() < 0.001);
+        // str7: F#3 (54) + 2 = G#3 (56)
+        assert!((open[6] - 56.0).abs() < 0.001);
     }
 
     #[test]
@@ -364,6 +370,8 @@ mod tests {
         let open = e.effective_open_pitches(&s);
         // str2: D#4 (63) - 2 = C#4 (61)
         assert!((open[1] - 61.0).abs() < 0.001);
+        // str6: G#3 (56) - 2 = F#3 (54)
+        assert!((open[5] - 54.0).abs() < 0.001);
         // str9: D3 (50) - 1 = C#3 (49)
         assert!((open[8] - 49.0).abs() < 0.001);
     }
@@ -374,8 +382,10 @@ mod tests {
         let mut s = SensorFrame::at_rest(0);
         s.knee_levers[4] = 0.5; // RKR half engaged (soft stop)
         let open = e.effective_open_pitches(&s);
-        // str2: D#4 (63) - 1 = D4 (62) — soft stop approximation
+        // str2: D#4 (63) - 1 = D4 (62) -- soft stop approximation
         assert!((open[1] - 62.0).abs() < 0.001);
+        // str6: G#3 (56) - 1 = G3 (55) -- proportional
+        assert!((open[5] - 55.0).abs() < 0.001);
         // str9: D3 (50) - 0.5 = between D and C#
         assert!((open[8] - 49.5).abs() < 0.001);
     }

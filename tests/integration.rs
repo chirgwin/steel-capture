@@ -637,13 +637,13 @@ fn test_jsonl_header_format() {
     // Verify JSONL header line matches what data_logger writes
     let header = serde_json::json!({
         "format": "steel-capture",
-        "copedant": "Buddy Emmons E9",
+        "copedant": "Geoff Derby E9",
         "rate_hz": 60,
     });
     let line = serde_json::to_string(&header).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&line).unwrap();
     assert_eq!(parsed["format"], "steel-capture");
-    assert_eq!(parsed["copedant"], "Buddy Emmons E9");
+    assert_eq!(parsed["copedant"], "Geoff Derby E9");
     assert_eq!(parsed["rate_hz"], 60);
 }
 
@@ -652,7 +652,7 @@ fn test_jsonl_multi_frame_stream() {
     // Simulate a JSONL stream: header + N compact frames
     let header = serde_json::json!({
         "format": "steel-capture",
-        "copedant": "Buddy Emmons E9",
+        "copedant": "Geoff Derby E9",
         "rate_hz": 60,
     });
 
@@ -875,7 +875,7 @@ fn test_jsonl_header_copedant_embedded() {
         serde_json::from_str(&serde_json::to_string(&header).unwrap()).unwrap();
 
     let cop = &parsed["copedant"];
-    assert_eq!(cop["name"], "Buddy Emmons E9");
+    assert_eq!(cop["name"], "Geoff Derby E9");
 
     // Open strings are MIDI note numbers
     let strings = cop["open_strings_midi"].as_array().unwrap();
@@ -1473,7 +1473,7 @@ fn test_jsonl_roundtrip_header_fields() {
 
     assert_eq!(reader.header.format, "steel-capture");
     assert_eq!(reader.header.rate_hz, 60);
-    assert_eq!(reader.header.copedant_name, "Buddy Emmons E9");
+    assert_eq!(reader.header.copedant_name, "Geoff Derby E9");
     assert!(
         reader.header.channels.len() >= 12,
         "need ≥12 channel defs, got {}",

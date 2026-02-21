@@ -190,7 +190,10 @@ cargo test --no-default-features --test integration
 | `jsonl_reader.rs` | JSONL session reader — parses recorded sessions back into CaptureFrames |
 | `console_display.rs` | ASCII terminal dashboard |
 | `webview_app.rs` | Native WebView GUI via wry/tao (loads the browser viz) |
-| `calibrator.rs` | Interactive per-string calibration from live audio |
+| `calibration.rs` | Calibration data types, load/save |
+| `calibrator.rs` | Interactive per-string calibration from live audio (behind `calibration` feature) |
+| `audio_input.rs` | cpal microphone capture (behind `calibration` feature) |
+| `serial_reader.rs` | Teensy USB serial protocol (behind `hardware` feature) |
 
 ### Bar Position Inference
 
